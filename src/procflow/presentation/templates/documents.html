@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Документи{% endblock %}
+{% block content %}
+<h1>Документи</h1>
+
+<div class="toolbar">
+  <form method="get" action="/documents">
+    <input type="text" name="q" value="{{ q }}" placeholder="Пошук: назва, постачальник, закупівля, нотатка…">
+    <button class="ghost" type="submit">Знайти</button>
+  </form>
+  <form class="inline js-open-folder" method="post" action="/documents/open-folder">
+    <button class="ghost" type="submit" title="Відкрити папку з усіма документами">📂 Відкрити папку</button>
+  </form>
+</div>
+
+{% if views %}
+<table>
+  <tr><th>Документ</th><th>Тип</th><th>Закупівля</th><th>Постачальник</th><th>Платник</th><th class="right">Сума, грн</th><th>Дата</th></tr>
+  {% for view in views %}
+  <tr>
+    <td><a href="/documents/{{ view.document.id }}/file" target="_blank" rel="noopener">{{ view.document.title }}</a>
+      {% if view.document.note %}<div class="muted">{{ view.document.note }}</div>{% endif %}
+    </td>
+    <td>{{ view.document.kind.label_uk }}</td>
+    <td>{{ view.procurement_name }}</td>
+    <td>{{ view.supplier_name or '—' }}</td>
+    <td>{{ view.payer_name or '—' }}</td>
+    <td class="right">{{ view.document.amount | money }}</td>
+    <td>{{ view.document.doc_date | date_uk if view.document.doc_date else view.document.created_at | date_uk }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="muted">Документів не знайдено. Завантажуйте рахунки на сторінці закупівлі.</p>
+{% endif %}
+{% endblock %}

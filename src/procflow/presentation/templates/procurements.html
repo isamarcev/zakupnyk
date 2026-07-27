@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Закупівлі{% endblock %}
+{% block content %}
+<h1>Закупівлі</h1>
+
+<div class="card">
+  <form method="post" action="/procurements" class="grid c2" style="align-items: end;">
+    <div>
+      <label>Назва нової закупівлі</label>
+      <input type="text" name="name" required placeholder="Напр.: Наземна станція — партія 3">
+    </div>
+    <div style="display:flex; gap:10px; align-items:end;">
+      <div style="flex:1">
+        <label>Опис (необов'язково)</label>
+        <input type="text" name="description" placeholder="Для кого, терміни, примітки">
+      </div>
+      <button type="submit">Створити</button>
+    </div>
+  </form>
+</div>
+
+{% if summaries %}
+<table>
+  <tr>
+    <th>Назва</th><th>Статус</th><th>Прогрес позицій</th>
+    <th class="right">Кошторис, грн</th><th class="right">Документи</th><th>Створено</th>
+  </tr>
+  {% for s in summaries %}
+  <tr>
+    <td><a href="/procurements/{{ s.procurement.id }}">{{ s.procurement.name }}</a>
+      {% if s.procurement.description %}<div class="muted">{{ s.procurement.description }}</div>{% endif %}
+    </td>
+    <td><span class="badge {{ s.procurement.status.value }}">{{ s.procurement.status.label_uk }}</span></td>
+    <td>
+      <div class="muted">{{ s.items_complete }} / {{ s.items_total }}</div>
+      <div class="progress"><div style="width: {{ (100 * s.items_complete / s.items_total) if s.items_total else 0 }}%"></div></div>
+    </td>
+    <td class="right">{{ s.cost_total | money }}</td>
+    <td class="right">{{ s.documents_count }}</td>
+    <td class="muted">{{ s.procurement.created_at | date_uk }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="muted">Поки що немає жодної закупівлі. Створіть нову або <a href="/import">імпортуйте з Excel</a>.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,42 @@
+[project]
+name = "procflow"
+version = "0.1.0"
+description = "Облік закупівель та документів — локальний веб-додаток"
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["F", "E", "W", "I", "N", "UP", "B", "C4", "SIM"]
+ignore = [
+    "E501",   # line too long (форматтер сам разбивает)
+    "B008",   # function-call-in-default-argument (FastAPI Depends)
+    "UP042",  # StrEnum требует 3.11+; (str, Enum) сохраняет совместимость с 3.10
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ruff.lint.isort]
+known-first-party = ["procflow"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src"]
+
+[[tool.mypy.overrides]]
+module = "openpyxl.*"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}{{ d.item.name }}{% endblock %}
+{% block content %}
+<p class="muted" style="margin-bottom:4px;">
+  <a href="/procurements/{{ d.procurement.id }}">← {{ d.procurement.name }}</a>
+</p>
+<h1>{{ d.item.name }}
+  <span class="badge stage-{{ d.item.stage.value }}" style="font-size:13px;">{{ d.item.stage.label_uk }}</span>
+</h1>
+
+<div class="card">
+  <div class="muted">
+    Потреба: <b>{{ d.item.qty_required | qty }}</b> ·
+    Замовлено: <b>{{ d.item.qty_ordered | qty }}</b> ·
+    В роботі: <b>{{ d.item.qty_in_progress | qty }}</b> ·
+    Ціна: <b>{{ d.item.unit_price | money }}</b> грн ·
+    Вартість: <b>{{ d.item.total_price | money }}</b> грн
+  </div>
+  {% if d.item.specification %}
+  <div class="spec" style="margin-top:8px;">{{ d.item.specification }}</div>
+  {% endif %}
+</div>
+
+<div class="grid c2">
+  <div>
+    <h2>Пропозиції</h2>
+    {% if d.offers %}
+    <table>
+      <tr><th>Постачальник</th><th class="right">Ціна, грн</th><th></th></tr>
+      {% for offer, supplier in d.offers %}
+      <tr>
+        <td>{% if offer.url %}<a href="{{ offer.url }}" target="_blank" rel="noopener">{{ supplier.name }}</a>
+            {% else %}<a href="/suppliers/{{ supplier.id }}">{{ supplier.name }}</a>{% endif %}</td>
+        <td class="right">{{ offer.price | money }}</td>
+        <td>{% if offer.url %}<a href="{{ offer.url }}" target="_blank" rel="noopener">відкрити</a>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="muted">Пропозицій немає.</p>{% endif %}
+
+    <h2>Документи</h2>
+    {% if d.documents %}
+    <table>
+      <tr><th>Документ</th><th>Постачальник</th><th class="right">Сума</th><th></th></tr>
+      {% for view in d.documents %}
+      <tr>
+        <td><a href="/documents/{{ view.document.id }}/file" target="_blank" rel="noopener">📄 {{ view.document.title }}</a></td>
+        <td class="muted">{{ view.supplier_name or '—' }}</td>
+        <td class="right">{{ view.document.amount | money }}</td>
+        <td>
+          <form class="inline js-del" data-remove="tr" method="post" action="/documents/{{ view.document.id }}/delete"
+                onsubmit="return confirm('Видалити документ «{{ view.document.title }}»?');">
+            <button class="danger" title="Видалити документ">×</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="muted">Документів немає.</p>{% endif %}
+  </div>
+
+  <div>
+    <h2>Повідомлення</h2>
+    <div class="card">
+      <form method="post" action="/items/{{ d.item.id }}/messages">
+        <textarea name="text" rows="2" placeholder="Напишіть повідомлення (наприклад: «зв'язався з постачальником, рахунок завтра»)" required></textarea>
+        <div style="margin-top:6px;"><button type="submit">Додати</button></div>
+      </form>
+    </div>
+    {% if d.messages %}
+    {% for m in d.messages %}
+    <div class="card" style="padding:10px 14px;">
+      <div style="white-space:pre-wrap;">{{ m.text }}</div>
+      <div class="muted" style="margin-top:5px; display:flex; justify-content:space-between; align-items:center;">
+        <span>{{ m.created_at.strftime('%d.%m.%Y %H:%M') }}</span>
+        <form method="post" action="/messages/{{ m.id }}/delete" class="inline"
+              onsubmit="return confirm('Видалити повідомлення?');">
+          <input type="hidden" name="item_id" value="{{ d.item.id }}">
+          <button class="danger" style="padding:2px 8px;">×</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p class="muted">Повідомлень ще немає.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

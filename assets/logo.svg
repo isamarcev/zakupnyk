@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Zakupnyk: посилка у синьо-жовтих кольорах -->
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="#0057B7"/>
+  <!-- відкриті клапани коробки -->
+  <polygon points="14,26 32,18 26,10 10,17" fill="#FFD700" opacity="0.85"/>
+  <polygon points="50,26 32,18 38,10 54,17" fill="#FFD700" opacity="0.85"/>
+  <!-- корпус коробки -->
+  <rect x="14" y="26" width="36" height="26" rx="3" fill="#FFD700"/>
+  <!-- стрічка -->
+  <rect x="29" y="26" width="6" height="26" fill="#0057B7" opacity="0.25"/>
+  <!-- галочка: позицію закрито -->
+  <path d="M24 38 L30 44 L41 32" fill="none" stroke="#0057B7" stroke-width="4.5"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

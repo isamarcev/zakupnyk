@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}{{ d.supplier.name }}{% endblock %}
+{% block content %}
+<h1>{{ d.supplier.name }} <span class="muted">({{ d.supplier.source.label_uk }})</span></h1>
+
+<div class="card">
+  <form method="post" action="/suppliers/{{ d.supplier.id }}/update" class="grid c2" style="align-items:end;">
+    <div>
+      <label>Назва</label>
+      <input type="text" name="name" value="{{ d.supplier.name }}" required>
+      <label>Джерело</label>
+      <select name="source">
+        {% for s in sources %}
+        <option value="{{ s.value }}" {{ 'selected' if s == d.supplier.source }}>{{ s.label_uk }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Контакти</label>
+      <input type="text" name="contacts" value="{{ d.supplier.contacts }}">
+      <label>Нотатки</label>
+      <textarea name="notes">{{ d.supplier.notes }}</textarea>
+      <div style="margin-top:8px;"><button type="submit">Зберегти</button></div>
+    </div>
+  </form>
+</div>
+
+<h2>Пропозиції цього постачальника</h2>
+{% if d.offers %}
+<table>
+  <tr><th>Позиція</th><th class="right">Ціна, грн</th><th>Посилання</th></tr>
+  {% for offer, item in d.offers %}
+  <tr>
+    <td><a href="/procurements/{{ item.procurement_id }}">{{ item.name }}</a></td>
+    <td class="right">{{ offer.price | money }}</td>
+    <td>{% if offer.url %}<a href="{{ offer.url }}" target="_blank" rel="noopener">відкрити</a>{% else %}—{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="muted">Пропозицій поки немає.</p>
+{% endif %}
+
+<h2>Документи</h2>
+{% if d.documents %}
+<table>
+  <tr><th>Документ</th><th>Закупівля</th><th class="right">Сума, грн</th><th>Дата</th></tr>
+  {% for view in d.documents %}
+  <tr>
+    <td><a href="/documents/{{ view.document.id }}/file" target="_blank" rel="noopener">{{ view.document.title }}</a></td>
+    <td>{{ view.procurement_name }}</td>
+    <td class="right">{{ view.document.amount | money }}</td>
+    <td>{{ view.document.doc_date | date_uk }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="muted">Документів поки немає.</p>
+{% endif %}
+{% endblock %}

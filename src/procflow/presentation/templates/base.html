@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Zakupnyk{% endblock %} — облік закупівель</title>
+  <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='2' y='2' width='60' height='60' rx='14' fill='%230057B7'/%3E%3Crect x='14' y='26' width='36' height='26' rx='3' fill='%23FFD700'/%3E%3Cpath d='M24 38 L30 44 L41 32' fill='none' stroke='%230057B7' stroke-width='4.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      --bg: #f6f7f9; --card: #fff; --border: #e2e5ea; --text: #1c2430;
+      --muted: #6b7686; --accent: #2563eb; --accent-soft: #eff4ff;
+      --green: #16a34a; --amber: #d97706; --red: #dc2626;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+    nav { background: var(--card); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; gap: 4px; align-items: center; }
+    nav .brand { font-weight: 700; margin-right: 20px; padding: 14px 0; color: var(--accent); }
+    nav a.item { padding: 14px 12px; text-decoration: none; color: var(--muted); border-bottom: 2px solid transparent; }
+    nav a.item:hover { color: var(--text); }
+    nav a.item.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+    main { max-width: 1600px; margin: 24px auto; padding: 0 24px; }
+    .table-wrap { overflow-x: auto; }
+    h1 { font-size: 22px; margin: 0 0 16px; }
+    h2 { font-size: 17px; margin: 24px 0 10px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 10px; overflow: hidden; }
+    th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { background: #fafbfc; font-size: 12.5px; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); }
+    tr:hover td { background: #fafcff; }
+    a { color: var(--accent); }
+    .muted { color: var(--muted); font-size: 13px; }
+    .right { text-align: right; }
+    .badge { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 12.5px; font-weight: 600; }
+    .badge.draft { background: #f1f5f9; color: var(--muted); }
+    .badge.active { background: #fef3c7; color: var(--amber); }
+    .badge.done { background: #dcfce7; color: var(--green); }
+    .progress { background: #eef1f5; border-radius: 99px; height: 8px; min-width: 80px; overflow: hidden; }
+    .progress > div { height: 100%; background: var(--green); }
+    select.stage { width: auto; max-width: 190px; border-radius: 99px; font-size: 12.5px; font-weight: 600; padding: 3px 8px; cursor: pointer; border: 1px solid transparent; }
+    .stage-new { background: #f1f5f9; color: #64748b; }
+    .stage-awaiting_invoice { background: #dbeafe; color: #1d4ed8; }
+    .stage-sent_for_payment { background: #fef3c7; color: #b45309; }
+    .stage-paid { background: #ede9fe; color: #6d28d9; }
+    .stage-received { background: #ccfbf1; color: #0f766e; }
+    .stage-closed { background: #dcfce7; color: #15803d; }
+    .stage-blocked { background: #fee2e2; color: #b91c1c; }
+    .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 12px; }
+    .chip { text-decoration: none; padding: 3px 10px; border-radius: 99px; font-size: 12.5px; font-weight: 600; border: 1px solid var(--border); color: var(--muted); background: var(--card); }
+    .chip.on { outline: 2px solid var(--accent); }
+    .title-presets { display: flex; gap: 5px; flex-wrap: wrap; margin: 5px 0 2px; }
+    .preset { background: var(--accent-soft); color: var(--accent); border: 1px solid var(--border); border-radius: 99px; font-size: 12px; font-weight: 600; padding: 2px 9px; cursor: pointer; }
+    .preset:hover { border-color: var(--accent); }
+    .preset-add { background: transparent; color: var(--muted); }
+    form.inline { display: inline; }
+    input[type=text], input[type=number], input[type=date], select, textarea {
+      width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 7px; font: inherit; background: #fff;
+    }
+    textarea { resize: vertical; min-height: 60px; }
+    label { display: block; font-size: 12.5px; color: var(--muted); margin: 8px 0 3px; }
+    button { padding: 8px 14px; border: 0; border-radius: 7px; background: var(--accent); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+    button:hover { filter: brightness(1.08); }
+    button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+    button.danger { background: transparent; color: var(--red); border: 1px solid var(--border); padding: 4px 10px; font-weight: 500; }
+    .grid { display: grid; gap: 12px; }
+    .grid.c2 { grid-template-columns: 1fr 1fr; }
+    .grid.c3 { grid-template-columns: 1fr 1fr 1fr; }
+    .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+    .toolbar form { display: flex; gap: 8px; flex: 1; min-width: 260px; }
+    details { margin-top: 6px; }
+    summary { cursor: pointer; color: var(--accent); font-size: 13.5px; }
+    .spec { white-space: pre-wrap; font-size: 13px; color: var(--muted); max-width: 480px; }
+    .copy { cursor: pointer; background: var(--accent-soft); border: 1px solid var(--border); color: var(--text); padding: 3px 8px; border-radius: 6px; font-size: 13px; font-family: ui-monospace, monospace; }
+    .copy:hover { border-color: var(--accent); }
+    .flash { position: fixed; bottom: 18px; right: 18px; background: var(--text); color: #fff; padding: 9px 16px; border-radius: 8px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+    .flash.show { opacity: .92; }
+  </style>
+</head>
+<body>
+  <nav>
+    <span class="brand" style="display:flex; align-items:center; gap:8px;">
+      <svg viewBox="0 0 64 64" width="22" height="22" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="60" height="60" rx="14" fill="#0057B7"/><polygon points="14,26 32,18 26,10 10,17" fill="#FFD700" opacity="0.85"/><polygon points="50,26 32,18 38,10 54,17" fill="#FFD700" opacity="0.85"/><rect x="14" y="26" width="36" height="26" rx="3" fill="#FFD700"/><path d="M24 38 L30 44 L41 32" fill="none" stroke="#0057B7" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Zakupnyk
+    </span>
+    <a class="item {{ 'active' if active == 'procurements' }}" href="/procurements">Закупівлі</a>
+    <a class="item {{ 'active' if active == 'suppliers' }}" href="/suppliers">Постачальники</a>
+    <a class="item {{ 'active' if active == 'payers' }}" href="/payers">Платники</a>
+    <a class="item {{ 'active' if active == 'recipients' }}" href="/recipients">Логістика</a>
+    <a class="item {{ 'active' if active == 'documents' }}" href="/documents">Документи</a>
+    <a class="item {{ 'active' if active == 'import' }}" href="/import">Імпорт</a>
+  </nav>
+  <main>{% block content %}{% endblock %}</main>
+  <div class="flash" id="flash">Скопійовано</div>
+  <script>
+    function showFlash(text) {
+      const el = document.getElementById('flash');
+      el.textContent = text;
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), 1200);
+    }
+    function copyText(text) {
+      navigator.clipboard.writeText(text).then(() => showFlash('Скопійовано'));
+    }
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-copy]');
+      if (btn) copyText(btn.dataset.copy);
+    });
+    // Відкриття папки з документами у Finder/Провіднику (працює лише при локальному запуску)
+    document.addEventListener('submit', (e) => {
+      const form = e.target.closest('form.js-open-folder');
+      if (!form) return;
+      e.preventDefault();
+      fetch(form.action, { method: 'POST' })
+        .then((r) => {
+          if (!r.ok) throw new Error();
+          showFlash('Відкриваю папку…');
+        })
+        .catch(() => showFlash('Не вдалося відкрити папку'));
+    });
+    // Зміна стадії без перезавантаження сторінки (скрол лишається на місці)
+    document.addEventListener('change', (e) => {
+      const select = e.target.closest('select.stage');
+      if (!select) return;
+      const form = select.form;
+      fetch(form.action, { method: 'POST', body: new FormData(form) })
+        .then((r) => {
+          if (!r.ok) throw new Error();
+          select.className = 'stage stage-' + select.value;
+          showFlash('Стадію збережено');
+        })
+        .catch(() => showFlash('Помилка збереження'));
+      e.preventDefault();
+    });
+
+    // Теги-передвибір для назви документа (зберігаються в браузері)
+    const TITLE_DEFAULTS = ['Рахунок', 'Квитанція', 'Накладна', 'Договір'];
+    const TITLE_KEY = 'zk_doc_titles';
+    function loadCustomTitles() {
+      try { return JSON.parse(localStorage.getItem(TITLE_KEY) || '[]'); } catch { return []; }
+    }
+    function allTitles() {
+      const custom = loadCustomTitles().filter((t) => !TITLE_DEFAULTS.includes(t));
+      return TITLE_DEFAULTS.concat(custom);
+    }
+    function renderTitlePresets() {
+      document.querySelectorAll('.title-presets').forEach((box) => {
+        box.innerHTML = '';
+        const input = box.closest('form').querySelector('input[name="title"]');
+        allTitles().forEach((t) => {
+          const b = document.createElement('button');
+          b.type = 'button'; b.className = 'preset'; b.textContent = '+ ' + t;
+          b.addEventListener('click', () => { input.value = t; input.focus(); });
+          box.appendChild(b);
+        });
+        const add = document.createElement('button');
+        add.type = 'button'; add.className = 'preset preset-add'; add.textContent = '＋ свій';
+        add.title = 'Додати свій тег';
+        add.addEventListener('click', () => {
+          const v = (prompt('Новий тег назви документа:') || '').trim();
+          if (!v) return;
+          const list = loadCustomTitles();
+          if (!list.includes(v)) { list.push(v); localStorage.setItem(TITLE_KEY, JSON.stringify(list)); }
+          renderTitlePresets();
+        });
+        box.appendChild(add);
+      });
+    }
+    renderTitlePresets();
+
+    // Додавання повідомлення прямо з рядка таблиці (без перезавантаження)
+    document.addEventListener('submit', (e) => {
+      const form = e.target.closest('form.msg-add');
+      if (!form) return;
+      e.preventDefault();
+      const input = form.querySelector('input[name="text"]');
+      const text = input.value.trim();
+      if (!text) return;
+      fetch(form.action, { method: 'POST', body: new FormData(form) })
+        .then((r) => {
+          if (!r.ok) throw new Error();
+          const lm = form.closest('td').querySelector('.last-msg');
+          const short = text.length > 60 ? text.slice(0, 60) + '…' : text;
+          if (lm) lm.textContent = '💬 ' + short;
+          input.value = '';
+          showFlash('Повідомлення додано');
+        })
+        .catch(() => showFlash('Помилка'));
+    });
+
+    // Видалення без перезавантаження: рядок/картку прибираємо з DOM, скрол лишається
+    document.addEventListener('submit', (e) => {
+      const form = e.target.closest('form.js-del');
+      if (!form || e.defaultPrevented) return; // defaultPrevented = користувач скасував confirm()
+      e.preventDefault();
+      const target = form.closest(form.dataset.remove || 'div');
+      fetch(form.action, { method: 'POST', body: new FormData(form) })
+        .then((r) => {
+          if (!r.ok) throw new Error();
+          if (target) target.remove();
+          showFlash('Видалено');
+        })
+        .catch(() => showFlash('Помилка видалення'));
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+services:
+  procflow:
+    build: .
+    container_name: procflow
+    restart: unless-stopped
+    ports:
+      # зовнішній порт можна змінити через PROCFLOW_PUBLIC_PORT (типово 8077)
+      - "${PROCFLOW_PUBLIC_PORT:-8077}:8077"
+    volumes:
+      # база та файли документів живуть на хості — переживають перезбірку контейнера
+      - ./data:/app/data

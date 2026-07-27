@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Логістика{% endblock %}
+{% block content %}
+<h1>Логістика <span class="muted">(шаблони отримувачів для відправки)</span></h1>
+
+<div class="toolbar">
+  <form method="get" action="/recipients">
+    <input type="text" name="q" value="{{ q }}" placeholder="Пошук: ім'я, телефон, адреса, призначення…">
+    <button class="ghost" type="submit">Знайти</button>
+  </form>
+</div>
+
+<div class="card">
+  <b>Новий отримувач</b>
+  <form method="post" action="/recipients" style="margin-top:8px;">
+    <label>Вставте дані як є (з листа, повідомлення…)</label>
+    <textarea name="block" rows="5" placeholder="Отримувач
+Тестенко Тарас
+Телефон отримувача
++380 00 111 22 33
+Адреса
+смт. Вигадане, №1: вул. Прикладна, 1"></textarea>
+    <p class="muted" style="margin:6px 0 0;">Ім'я та телефон розпізнаються автоматично. Текст зберігається й копіюється дослівно.</p>
+    <div class="grid c2" style="margin-top:8px;">
+      <div><label>Призначення (мітка)</label><input type="text" name="purpose" placeholder="Для доставки / Для документів"></div>
+      <div><label>Адреса (окремо, необов'язково)</label><input type="text" name="address"></div>
+    </div>
+    <details>
+      <summary>або заповнити поля вручну</summary>
+      <div class="grid c2" style="margin-top:6px;">
+        <div><label>Отримувач</label><input type="text" name="name"></div>
+        <div><label>Телефон</label><input type="text" name="phone"></div>
+      </div>
+    </details>
+    <label>Нотатки</label>
+    <input type="text" name="notes" placeholder="Відділення, графік, особливості…">
+    <div style="margin-top:10px;"><button type="submit">Додати</button></div>
+  </form>
+</div>
+
+{% if recipients %}
+{% for r in recipients %}
+<div class="card">
+  <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+    <div style="flex:1; min-width:280px;">
+      <b style="font-size:16px;">{{ r.name }}</b>
+      {% if r.purpose %}<span class="badge active" style="margin-left:6px;">{{ r.purpose }}</span>{% endif %}
+      {% if r.block %}
+      <div class="spec" style="margin-top:6px;">{{ r.block }}</div>
+      {% endif %}
+      <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <button class="copy" data-copy="{{ r.copy_text }}">📋 скопіювати дані</button>
+        {% for phone in r.phones %}<button class="copy" data-copy="{{ phone }}" title="Скопіювати телефон">📞 {{ phone }}</button>{% endfor %}
+        {% if r.address %}<button class="copy" data-copy="{{ r.address }}" title="Скопіювати адресу">адреса</button>{% endif %}
+      </div>
+      {% if r.notes %}<div class="muted" style="margin-top:6px;">{{ r.notes }}</div>{% endif %}
+    </div>
+    <details>
+      <summary>редагувати</summary>
+      <form method="post" action="/recipients/{{ r.id }}/update" style="margin-top:8px; min-width:300px;">
+        <label>Дані (як є)</label>
+        <textarea name="block" rows="5">{{ r.block }}</textarea>
+        <label>Призначення</label>
+        <input type="text" name="purpose" value="{{ r.purpose }}">
+        <label>Отримувач</label>
+        <input type="text" name="name" value="{{ r.name }}">
+        <label>Телефон</label>
+        <input type="text" name="phone" value="{{ r.phone }}">
+        <label>Адреса</label>
+        <input type="text" name="address" value="{{ r.address }}">
+        <label>Нотатки</label>
+        <input type="text" name="notes" value="{{ r.notes }}">
+        <div style="margin-top:8px;"><button type="submit">Зберегти</button></div>
+      </form>
+      <form class="inline js-del" data-remove=".card" method="post" action="/recipients/{{ r.id }}/delete"
+            onsubmit="return confirm('Видалити отримувача «{{ r.name }}»?');">
+        <button class="danger">Видалити</button>
+      </form>
+    </details>
+  </div>
+</div>
+{% endfor %}
+{% else %}
+<p class="muted">Отримувачів не знайдено.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Помилка{% endblock %}
+{% block content %}
+<h1>Помилка</h1>
+<div class="card">
+  <p><b>{{ message }}</b></p>
+  <p class="muted">Код: {{ code }}</p>
+  <p><a href="javascript:history.back()">← Повернутися назад</a></p>
+</div>
+{% endblock %}

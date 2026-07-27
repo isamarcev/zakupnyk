@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Постачальники{% endblock %}
+{% block content %}
+<h1>Постачальники</h1>
+
+<div class="toolbar">
+  <form method="get" action="/suppliers">
+    <input type="text" name="q" value="{{ q }}" placeholder="Пошук за назвою…">
+    <button class="ghost" type="submit">Знайти</button>
+  </form>
+</div>
+
+<div class="card">
+  <b>Новий постачальник</b>
+  <form method="post" action="/suppliers" class="grid c3" style="margin-top:8px; align-items:end;">
+    <div>
+      <label>Назва</label>
+      <input type="text" name="name" required>
+    </div>
+    <div>
+      <label>Джерело</label>
+      <select name="source">
+        {% for s in sources %}<option value="{{ s.value }}">{{ s.label_uk }}</option>{% endfor %}
+      </select>
+    </div>
+    <div style="display:flex; gap:10px; align-items:end;">
+      <div style="flex:1">
+        <label>Контакти</label>
+        <input type="text" name="contacts" placeholder="Телефон, e-mail, сайт">
+      </div>
+      <button type="submit">Додати</button>
+    </div>
+  </form>
+</div>
+
+{% if suppliers %}
+<table>
+  <tr><th>Назва</th><th>Джерело</th><th>Контакти</th><th>Нотатки</th></tr>
+  {% for s in suppliers %}
+  <tr>
+    <td><a href="/suppliers/{{ s.id }}">{{ s.name }}</a></td>
+    <td>{{ s.source.label_uk }}</td>
+    <td>{{ s.contacts or '—' }}</td>
+    <td class="muted">{{ s.notes or '' }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="muted">Постачальників не знайдено.</p>
+{% endif %}
+{% endblock %}

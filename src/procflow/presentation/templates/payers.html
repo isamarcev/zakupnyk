@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Платники{% endblock %}
+{% block content %}
+<h1>Платники <span class="muted">(реквізити для оплат)</span></h1>
+
+<div class="toolbar">
+  <form method="get" action="/payers">
+    <input type="text" name="q" value="{{ q }}" placeholder="Пошук: ім'я, IBAN, ЄДРПОУ, адреса…">
+    <button class="ghost" type="submit">Знайти</button>
+  </form>
+</div>
+
+<div class="card">
+  <b>Новий платник</b>
+  <form method="post" action="/payers" style="margin-top:8px;">
+    <label>Вставте реквізити як є (з листа, документа…)</label>
+    <textarea name="requisites" rows="5" placeholder="БО «Благодійний фонд»
+Юр. адреса: …
+код за ЄДРПОУ 12345678
+тел.: +380 …"></textarea>
+    <p class="muted" style="margin:6px 0 0;">Ім'я візьмемо з першого рядка, IBAN та ІПН/ЄДРПОУ знайдемо автоматично.
+       Текст зберігається й копіюється дослівно.</p>
+    <details>
+      <summary>або заповнити поля вручну</summary>
+      <div class="grid c2" style="margin-top:6px;">
+        <div><label>Отримувач</label><input type="text" name="name"></div>
+        <div><label>IBAN</label><input type="text" name="iban" placeholder="UA…"></div>
+        <div><label>ІПН / ЄДРПОУ</label><input type="text" name="tax_id"></div>
+        <div><label>Банк</label><input type="text" name="bank"></div>
+      </div>
+    </details>
+    <label>Нотатки</label>
+    <input type="text" name="notes" placeholder="Призначення платежу, обмеження…">
+    <div style="margin-top:10px;"><button type="submit">Додати</button></div>
+  </form>
+</div>
+
+{% if payers %}
+{% for p in payers %}
+<div class="card">
+  <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+    <div style="flex:1; min-width:280px;">
+      <b style="font-size:16px;">{{ p.name }}</b>
+      {% if p.requisites %}
+      <div class="spec" style="margin-top:6px;">{{ p.requisites }}</div>
+      {% endif %}
+      <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <button class="copy" data-copy="{{ p.copy_text }}">📋 скопіювати реквізити</button>
+        {% if p.iban %}<button class="copy" data-copy="{{ p.iban }}" title="Скопіювати IBAN">{{ p.iban }}</button>{% endif %}
+        {% if p.tax_id %}<button class="copy" data-copy="{{ p.tax_id }}" title="Скопіювати ІПН/ЄДРПОУ">ЄДРПОУ/ІПН: {{ p.tax_id }}</button>{% endif %}
+      </div>
+      {% if p.bank %}<div class="muted" style="margin-top:6px;">Банк: {{ p.bank }}</div>{% endif %}
+      {% if p.notes %}<div class="muted" style="margin-top:4px;">{{ p.notes }}</div>{% endif %}
+    </div>
+    <details>
+      <summary>редагувати</summary>
+      <form method="post" action="/payers/{{ p.id }}/update" style="margin-top:8px; min-width:300px;">
+        <label>Реквізити (як є)</label>
+        <textarea name="requisites" rows="5">{{ p.requisites }}</textarea>
+        <label>Отримувач</label>
+        <input type="text" name="name" value="{{ p.name }}">
+        <label>IBAN</label>
+        <input type="text" name="iban" value="{{ p.iban }}">
+        <label>ІПН / ЄДРПОУ</label>
+        <input type="text" name="tax_id" value="{{ p.tax_id }}">
+        <label>Банк</label>
+        <input type="text" name="bank" value="{{ p.bank }}">
+        <label>Нотатки</label>
+        <input type="text" name="notes" value="{{ p.notes }}">
+        <div style="margin-top:8px; display:flex; gap:8px;">
+          <button type="submit">Зберегти</button>
+        </div>
+      </form>
+      <form class="inline js-del" data-remove=".card" method="post" action="/payers/{{ p.id }}/delete"
+            onsubmit="return confirm('Видалити платника «{{ p.name }}»?');">
+        <button class="danger">Видалити</button>
+      </form>
+    </details>
+  </div>
+</div>
+{% endfor %}
+{% else %}
+<p class="muted">Платників не знайдено.</p>
+{% endif %}
+{% endblock %}

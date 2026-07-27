@@ -1,0 +1,315 @@
+{% extends "base.html" %}
+{% block title %}{{ d.procurement.name }}{% endblock %}
+{% block content %}
+<h1>{{ d.procurement.name }}
+  <span class="badge {{ d.procurement.status.value }}">{{ d.procurement.status.label_uk }}</span>
+</h1>
+
+<div class="card">
+  <form method="post" action="/procurements/{{ d.procurement.id }}/update" class="grid c3" style="align-items:end;">
+    <div>
+      <label>Назва</label>
+      <input type="text" name="name" value="{{ d.procurement.name }}" required>
+    </div>
+    <div>
+      <label>Опис</label>
+      <input type="text" name="description" value="{{ d.procurement.description }}">
+    </div>
+    <div style="display:flex; gap:10px; align-items:end;">
+      <div style="flex:1">
+        <label>Статус</label>
+        <select name="status">
+          {% for st in statuses %}
+          <option value="{{ st.value }}" {{ 'selected' if st == d.procurement.status }}>{{ st.label_uk }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit">Зберегти</button>
+    </div>
+  </form>
+  <div class="muted" style="margin-top:10px;">
+    Кошторис: <b>{{ d.cost_total | money }} грн</b> ·
+    Позицій: {{ d.items | length }} ·
+    Документів: {{ d.documents | length }}
+  </div>
+</div>
+
+<h2>Позиції</h2>
+<div class="chips">
+  <a class="chip {{ 'on' if not selected_stages }}" href="/procurements/{{ d.procurement.id }}">Всі ({{ d.items | length }})</a>
+  {% for st in stages %}
+  {% if stage_counts[st] %}
+  <a class="chip stage-{{ st.value }} {{ 'on' if st in selected_stages }}"
+     href="{{ stage_links[st] }}">{{ st.label_uk }} ({{ stage_counts[st] }})</a>
+  {% endif %}
+  {% endfor %}
+</div>
+<div class="table-wrap">
+<table>
+  <tr>
+    <th style="min-width:240px;">Найменування</th><th>Стадія</th><th>Потреба</th><th>Замовлено</th><th>В роботі</th>
+    <th class="right">Ціна</th><th class="right">Вартість</th><th>Пропозиції</th><th>Документи</th>
+  </tr>
+  {% for v in visible_items %}
+  <tr>
+    <td>
+      <a href="/items/{{ v.item.id }}" style="font-weight:700; text-decoration:none;">{{ v.item.name }}</a>
+      <div class="last-msg muted" style="margin-top:3px; font-size:12.5px;">{% if v.last_message %}💬 {{ v.last_message.text | truncate(60) }}{% endif %}</div>
+      <form class="msg-add" method="post" action="/items/{{ v.item.id }}/messages"
+            style="display:flex; gap:4px; margin-top:4px; max-width:280px;">
+        <input type="text" name="text" placeholder="+ повідомлення…" required
+               style="flex:1; padding:4px 8px; font-size:12.5px;">
+        <button type="submit" style="padding:4px 10px;">→</button>
+      </form>
+      {% if v.item.specification %}
+      <details><summary>специфікація</summary><div class="spec">{{ v.item.specification }}</div></details>
+      {% endif %}
+      <details>
+        <summary>редагувати</summary>
+        <form method="post" action="/items/{{ v.item.id }}/update" style="margin-top:8px;">
+          <label>Найменування</label>
+          <input type="text" name="name" value="{{ v.item.name }}" required>
+          <label>Специфікація</label>
+          <textarea name="specification">{{ v.item.specification }}</textarea>
+          <div class="grid c2">
+            <div><label>Потреба</label><input type="text" name="qty_required" value="{{ v.item.qty_required | qty }}"></div>
+            <div><label>Замовлено</label><input type="text" name="qty_ordered" value="{{ v.item.qty_ordered | qty }}"></div>
+            <div><label>В роботі</label><input type="text" name="qty_in_progress" value="{{ v.item.qty_in_progress | qty }}"></div>
+            <div><label>Ціна, грн</label><input type="text" name="unit_price" value="{{ v.item.unit_price if v.item.unit_price is not none }}"></div>
+          </div>
+          <div style="margin-top:8px; display:flex; gap:8px;">
+            <button type="submit">Зберегти</button>
+          </div>
+        </form>
+        <form class="inline js-del" data-remove="tr" method="post" action="/items/{{ v.item.id }}/delete"
+              onsubmit="return confirm('Видалити позицію «{{ v.item.name }}»?');">
+          <button class="danger" type="submit">Видалити позицію</button>
+        </form>
+      </details>
+    </td>
+    <td>
+      <form method="post" action="/items/{{ v.item.id }}/stage">
+        <select name="stage" class="stage stage-{{ v.item.stage.value }}">
+          {% for st in stages %}
+          <option value="{{ st.value }}" {{ 'selected' if st == v.item.stage }}>{{ st.label_uk }}</option>
+          {% endfor %}
+        </select>
+      </form>
+    </td>
+    <td>{{ v.item.qty_required | qty }}</td>
+    <td>{{ '✅' if v.item.is_complete else '' }} {{ v.item.qty_ordered | qty }}</td>
+    <td>{{ v.item.qty_in_progress | qty }}</td>
+    <td class="right">{{ v.item.unit_price | money }}</td>
+    <td class="right">{{ v.item.total_price | money }}</td>
+    <td>
+      {% for offer, supplier in v.offers %}
+      <div style="margin-bottom:4px;">
+        {% if offer.url %}<a href="{{ offer.url }}" target="_blank" rel="noopener">{{ supplier.name }}</a>
+        {% else %}<a href="/suppliers/{{ supplier.id }}">{{ supplier.name }}</a>{% endif %}
+        — {{ offer.price | money }} грн
+        <form class="inline js-del" data-remove="div" method="post" action="/offers/{{ offer.id }}/delete">
+          <button class="danger" title="Видалити пропозицію">×</button>
+        </form>
+      </div>
+      {% endfor %}
+      <details>
+        <summary>+ пропозиція</summary>
+        <form method="post" action="/items/{{ v.item.id }}/offers" style="margin-top:6px;">
+          <select name="supplier_id">
+            <option value="" selected>Постачальник зі списку…</option>
+            {% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+          </select>
+          <label>…або новий постачальник</label>
+          <div style="display:flex; gap:6px;">
+            <input type="text" name="new_supplier_name" placeholder="Назва (напр. bnbfly.com.ua)">
+            <select name="new_supplier_source" style="width:auto;">
+              {% for src in sources %}
+              <option value="{{ src.value }}" {{ 'selected' if src.value == 'distributor' }}>{{ src.label_uk }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <label>Посилання</label>
+          <input type="text" name="url" placeholder="https://…">
+          <label>Ціна, грн</label>
+          <input type="text" name="price">
+          <div style="margin-top:6px;"><button type="submit">Додати</button></div>
+        </form>
+      </details>
+    </td>
+    <td>
+      {% for view in d.documents if v.item.id in view.document.line_item_ids %}
+      <div>
+        <a href="/documents/{{ view.document.id }}/file" target="_blank" rel="noopener" title="{{ view.document.kind.label_uk }}">📄 {{ view.document.title }}</a>
+        {% if view.supplier_name %}<span class="muted">({{ view.supplier_name }})</span>{% endif %}
+        <form class="inline js-del" data-remove="div" method="post" action="/documents/{{ view.document.id }}/delete"
+              onsubmit="return confirm('Видалити документ «{{ view.document.title }}»?');">
+          <button class="danger" title="Видалити документ">×</button>
+        </form>
+      </div>
+      {% endfor %}
+      <details>
+        <summary>+ документ</summary>
+        <form method="post" action="/items/{{ v.item.id }}/documents" enctype="multipart/form-data" style="margin-top:6px; min-width:220px;">
+          <input type="file" name="file" required>
+          <label>Назва</label>
+          <input type="text" name="title" placeholder="Рахунок №…">
+          <div class="title-presets"></div>
+          <label>Тип</label>
+          <select name="kind">
+            {% for k in kinds %}<option value="{{ k.value }}">{{ k.label_uk }}</option>{% endfor %}
+          </select>
+          <label>Постачальник</label>
+          <select name="supplier_id">
+            <option value="">—</option>
+            {% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+          </select>
+          <label>Платник</label>
+          <select name="payer_id">
+            <option value="">—</option>
+            {% for p in payers %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+          </select>
+          <div class="grid c2">
+            <div><label>Сума, грн</label><input type="text" name="amount"></div>
+            <div><label>Дата</label><input type="date" name="doc_date"></div>
+          </div>
+          <div style="margin-top:6px;"><button type="submit">Завантажити</button></div>
+        </form>
+      </details>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+
+{% if visible_items %}
+<div class="card" style="margin-top:14px;">
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+    <b>Специфікація ({{ visible_items | length }})</b>
+    <button type="button" id="copy-spec">Копіювати специфікацію</button>
+  </div>
+  <div id="spec-lines" style="margin-top:8px;">
+    {% for v in visible_items %}
+    <div class="spec-line">
+      <a href="/items/{{ v.item.id }}">{{ v.item.name }}</a><span class="spec-tail"> — {{ v.item.qty_required | qty }} шт, ціна {{ v.item.unit_price | money }}, сума {{ v.item.total_price | money }} грн</span>
+    </div>
+    {% endfor %}
+  </div>
+  <div id="spec-total" style="margin-top:8px; font-weight:700;">
+    Разом: {{ visible_items | map(attribute='item.total_price') | sum | money }} грн
+  </div>
+</div>
+<script>
+  // Копіює специфікацію простим текстом без посилань (локальні URL одержувачам не працюють).
+  document.getElementById('copy-spec').addEventListener('click', () => {
+    const lines = [...document.querySelectorAll('#spec-lines .spec-line')]
+      .map((line) => line.textContent.trim().replace(/\s+/g, ' '));
+    lines.push(document.getElementById('spec-total').textContent.trim());
+    navigator.clipboard.writeText(lines.join('\n'))
+      .then(() => showFlash('Специфікацію скопійовано'));
+  });
+</script>
+{% endif %}
+
+<div class="card" style="margin-top:14px;">
+  <b>Додати позицію</b>
+  <form method="post" action="/procurements/{{ d.procurement.id }}/items" class="grid c2" style="margin-top:8px; align-items:end;">
+    <div>
+      <label>Найменування</label>
+      <input type="text" name="name" required>
+      <label>Специфікація</label>
+      <textarea name="specification"></textarea>
+    </div>
+    <div>
+      <div class="grid c2">
+        <div><label>Потреба</label><input type="text" name="qty_required" value="1"></div>
+        <div><label>Ціна, грн</label><input type="text" name="unit_price"></div>
+      </div>
+      <div style="margin-top:12px;"><button type="submit">Додати позицію</button></div>
+    </div>
+  </form>
+</div>
+
+<h2 style="display:flex; align-items:center; gap:12px;">Документи
+  <form class="inline js-open-folder" method="post" action="/procurements/{{ d.procurement.id }}/open-folder">
+    <button class="ghost" type="submit" title="Відкрити папку з файлами цієї закупівлі">📂 Відкрити папку</button>
+  </form>
+</h2>
+{% set item_names = {} %}
+{% for v in d.items %}{% if item_names.update({v.item.id: v.item.name}) %}{% endif %}{% endfor %}
+{% if d.documents %}
+<table>
+  <tr><th>Документ</th><th>Тип</th><th>Позиції</th><th>Постачальник</th><th>Платник</th><th class="right">Сума, грн</th><th>Дата</th><th></th></tr>
+  {% for view in d.documents %}
+  <tr>
+    <td><a href="/documents/{{ view.document.id }}/file" target="_blank" rel="noopener">{{ view.document.title }}</a>
+      {% if view.document.note %}<div class="muted">{{ view.document.note }}</div>{% endif %}
+    </td>
+    <td>{{ view.document.kind.label_uk }}</td>
+    <td class="muted">
+      {% for item_id in view.document.line_item_ids %}{{ item_names.get(item_id, '?') | truncate(40) }}{{ ', ' if not loop.last }}{% else %}—{% endfor %}
+    </td>
+    <td>{{ view.supplier_name or '—' }}</td>
+    <td>{{ view.payer_name or '—' }}</td>
+    <td class="right">{{ view.document.amount | money }}</td>
+    <td>{{ view.document.doc_date | date_uk }}</td>
+    <td>
+      <form class="inline js-del" data-remove="tr" method="post" action="/documents/{{ view.document.id }}/delete"
+            onsubmit="return confirm('Видалити документ «{{ view.document.title }}»?');">
+        <button class="danger">×</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="muted">Документів поки немає.</p>
+{% endif %}
+
+<div class="card" style="margin-top:14px;">
+  <b>Загальний документ закупівлі</b>
+  <span class="muted">— без прив'язки до конкретної позиції (договір, специфікація…). Рахунки по позиціях зручніше додавати кнопкою «+ документ» у рядку позиції.</span>
+  <form method="post" action="/procurements/{{ d.procurement.id }}/documents" enctype="multipart/form-data" class="grid c3" style="margin-top:8px; align-items:end;">
+    <div>
+      <label>Файл (PDF, фото…)</label>
+      <input type="file" name="file" required>
+      <label>Назва документа</label>
+      <input type="text" name="title" placeholder="Рахунок №… (за замовч. — ім'я файлу)">
+      <div class="title-presets"></div>
+    </div>
+    <div>
+      <label>Тип</label>
+      <select name="kind">
+        {% for k in kinds %}<option value="{{ k.value }}">{{ k.label_uk }}</option>{% endfor %}
+      </select>
+      <label>Постачальник</label>
+      <select name="supplier_id">
+        <option value="">—</option>
+        {% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+      </select>
+      <label>Платник</label>
+      <select name="payer_id">
+        <option value="">—</option>
+        {% for p in payers %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+      </select>
+      <label>Позиції (Cmd/Ctrl — кілька)</label>
+      <select name="line_item_ids" multiple size="4">
+        {% for v in d.items %}<option value="{{ v.item.id }}">{{ v.item.name | truncate(60) }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Сума, грн</label>
+      <input type="text" name="amount">
+      <label>Дата документа</label>
+      <input type="date" name="doc_date">
+      <label>Нотатка</label>
+      <input type="text" name="note">
+      <div style="margin-top:10px;"><button type="submit">Завантажити</button></div>
+    </div>
+  </form>
+</div>
+
+<form method="post" action="/procurements/{{ d.procurement.id }}/delete" style="margin-top:24px;"
+      onsubmit="return confirm('Видалити закупівлю «{{ d.procurement.name }}» разом з позиціями та документами?');">
+  <button class="danger">Видалити закупівлю</button>
+</form>
+{% endblock %}
