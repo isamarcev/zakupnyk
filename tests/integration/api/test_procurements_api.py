@@ -131,6 +131,72 @@ def test_offer_url_without_scheme_becomes_absolute(client: TestClient) -> None:
     assert 'href="https://radio-shop.com.ua/p123"' in page.text
 
 
+def test_line_items_grouped_by_module(client: TestClient) -> None:
+    created = client.post("/procurements", data={"name": "Модульна"}, follow_redirects=False)
+    procurement_id = created.headers["location"].rsplit("/", 1)[-1]
+    client.post(
+        f"/procurements/{procurement_id}/items",
+        data={"name": "Мотор dc", "qty_required": "2", "module": "Модуль поворотний"},
+        follow_redirects=False,
+    )
+    client.post(
+        f"/procurements/{procurement_id}/items",
+        data={"name": "Розьем xt60", "qty_required": "1", "module": "Модуль комутаційний"},
+        follow_redirects=False,
+    )
+
+    listing = client.get(f"/procurements/{procurement_id}").text.split("Додати позицію")[0]
+    assert "🧩 Модуль поворотний" in listing
+    assert "🧩 Модуль комутаційний" in listing
+
+
+def test_module_groups_collapsed_by_default(client: TestClient) -> None:
+    created = client.post("/procurements", data={"name": "Згортання"}, follow_redirects=False)
+    procurement_id = created.headers["location"].rsplit("/", 1)[-1]
+    client.post(
+        f"/procurements/{procurement_id}/items",
+        data={"name": "Мотор dc", "qty_required": "2", "module": "Модуль поворотний"},
+        follow_redirects=False,
+    )
+
+    page = client.get(f"/procurements/{procurement_id}").text
+    # заголовок модуля клікабельний (data-mod-toggle) і позиція згорнута за замовчуванням
+    assert "data-mod-toggle=" in page
+    assert "mod-item is-collapsed" in page
+    assert "Розгорнути всі модулі" in page
+
+
+def test_stage_filter_expands_module_groups(client: TestClient) -> None:
+    created = client.post("/procurements", data={"name": "Фільтр+групи"}, follow_redirects=False)
+    procurement_id = created.headers["location"].rsplit("/", 1)[-1]
+    client.post(
+        f"/procurements/{procurement_id}/items",
+        data={"name": "Мотор dc", "qty_required": "1", "module": "Модуль поворотний"},
+        follow_redirects=False,
+    )
+    client.post("/items/1/stage", data={"stage": "paid"}, follow_redirects=False)
+
+    listing = client.get(f"/procurements/{procurement_id}?stage=paid").text.split("Додати позицію")[
+        0
+    ]
+    # при активному фільтрі групи показані розгорнутими (рядок без is-collapsed)
+    assert "mod-item is-collapsed" not in listing
+    assert "Мотор dc" in listing
+
+
+def test_flat_procurement_shows_no_module_headers(client: TestClient) -> None:
+    created = client.post("/procurements", data={"name": "Плоска"}, follow_redirects=False)
+    procurement_id = created.headers["location"].rsplit("/", 1)[-1]
+    client.post(
+        f"/procurements/{procurement_id}/items",
+        data={"name": "Кабель", "qty_required": "1"},
+        follow_redirects=False,
+    )
+
+    listing = client.get(f"/procurements/{procurement_id}").text.split("Додати позицію")[0]
+    assert "🧩" not in listing
+
+
 def test_payers_crud(client: TestClient) -> None:
     response = client.post(
         "/payers",

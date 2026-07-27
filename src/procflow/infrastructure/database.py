@@ -62,6 +62,7 @@ class LineItemRow(Base):
     qty_in_progress: Mapped[float] = mapped_column(Float, default=0.0)
     unit_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     stage: Mapped[str] = mapped_column(String(20), default="new")
+    module: Mapped[str | None] = mapped_column(String(300), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 
     procurement: Mapped[ProcurementRow] = relationship(back_populates="items")
@@ -202,6 +203,7 @@ def _ensure_added_columns(engine: Engine) -> None:
     added_columns: list[tuple[str, str, str]] = [
         ("payers", "requisites", "TEXT NOT NULL DEFAULT ''"),
         ("line_items", "stage", "VARCHAR(20) NOT NULL DEFAULT 'new'"),
+        ("line_items", "module", "VARCHAR(300)"),
     ]
     with engine.begin() as connection:
         for table, column, ddl_type in added_columns:

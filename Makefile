@@ -1,11 +1,11 @@
-PYTHON ?= python3
-VENV   ?= .venv
+# why: uv керує залежностями й venv (.venv); uv run сам синхронізує середовище.
+RUN = PYTHONPATH=src uv run python
 
-.PHONY: help setup venv install run lint fmt typecheck test import-xlsx docker-up docker-down docker-logs clean
+.PHONY: help setup install run lint fmt typecheck test import-xlsx docker-up docker-down docker-logs clean
 
 help:
 	@echo "Доступні команди:"
-	@echo "  make setup       — повна первинна налаштування (venv + deps)"
+	@echo "  make setup       — встановити залежності через uv (uv sync)"
 	@echo "  make run         — запустити веб-додаток (http://127.0.0.1:8077)"
 	@echo "  make lint        — ruff check"
 	@echo "  make fmt         — ruff format"
@@ -17,34 +17,31 @@ help:
 	@echo "  make docker-logs — логи контейнера"
 	@echo "  make clean       — почистити кеші"
 
-setup: venv install
+setup: install
 	@echo ""
 	@echo "Готово. Спробуйте: make run"
 
-venv:
-	$(PYTHON) -m venv $(VENV)
-
+# why: uv sync створює .venv і ставить залежності + dev-групу з pyproject/uv.lock.
 install:
-	$(VENV)/bin/pip install --upgrade pip
-	$(VENV)/bin/pip install -r requirements-dev.txt
+	uv sync
 
 run:
-	PYTHONPATH=src $(VENV)/bin/python -m procflow.main.app
+	$(RUN) -m procflow.main.app
 
 lint:
-	$(VENV)/bin/ruff check src tests
+	uv run ruff check src tests
 
 fmt:
-	$(VENV)/bin/ruff format src tests
+	uv run ruff format src tests
 
 typecheck:
-	$(VENV)/bin/mypy src
+	uv run mypy src
 
 test:
-	PYTHONPATH=src $(VENV)/bin/pytest
+	PYTHONPATH=src uv run pytest
 
 import-xlsx:
-	PYTHONPATH=src $(VENV)/bin/python -m procflow.main.import_cli "$(file)"
+	$(RUN) -m procflow.main.import_cli "$(file)"
 
 docker-up:
 	docker compose up --build -d

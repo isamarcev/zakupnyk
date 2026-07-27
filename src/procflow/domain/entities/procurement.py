@@ -79,6 +79,7 @@ class LineItem:
     qty_in_progress: float = 0.0
     unit_price: float | None = None
     stage: ItemStage = ItemStage.NEW
+    module: str | None = None
     created_at: datetime = field(default_factory=datetime.now)
 
     @property

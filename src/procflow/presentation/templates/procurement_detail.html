@@ -44,14 +44,46 @@
   {% endif %}
   {% endfor %}
 </div>
+<style>
+  tr.mod-item.is-collapsed { display: none; }
+  tr.module-row:hover td { background: #e4eaf3; }
+  tr.module-row .caret { transition: transform .12s; }
+</style>
+{% set has_modules = visible_items | map(attribute='item.module') | select | list | length > 0 %}
+{% if has_modules %}
+<div style="margin:2px 0 8px;">
+  <button type="button" class="ghost" id="toggle-all-modules"
+          data-expanded="{{ '1' if selected_stages else '0' }}">
+    {{ 'Згорнути всі модулі' if selected_stages else 'Розгорнути всі модулі' }}
+  </button>
+</div>
+{% endif %}
 <div class="table-wrap">
 <table>
   <tr>
     <th style="min-width:240px;">Найменування</th><th>Стадія</th><th>Потреба</th><th>Замовлено</th><th>В роботі</th>
     <th class="right">Ціна</th><th class="right">Вартість</th><th>Пропозиції</th><th>Документи</th>
   </tr>
+  {% set ns = namespace(module=false, gid=0) %}
   {% for v in visible_items %}
-  <tr>
+  {% if has_modules and v.item.module != ns.module %}
+  {% set ns.gid = ns.gid + 1 %}
+  {% set group_items = visible_items | selectattr('item.module', 'equalto', v.item.module) | list %}
+  <tr class="module-row {{ 'open' if selected_stages }}" data-mod-toggle="{{ ns.gid }}"
+      style="cursor:pointer; user-select:none;">
+    <td colspan="9" style="background:#eef2f7; font-weight:700; padding:8px 10px; font-size:14px;">
+      <span class="caret" style="display:inline-block; width:14px; color:var(--muted);">{{ '▾' if selected_stages else '▸' }}</span>
+      🧩 {{ v.item.module or 'Без модуля' }}
+      <span class="muted" style="font-weight:500;">
+        · {{ group_items | length }} поз.
+        · {{ group_items | map(attribute='item.total_price') | sum | money }} грн
+      </span>
+    </td>
+  </tr>
+  {% set ns.module = v.item.module %}
+  {% endif %}
+  <tr class="{{ 'mod-item' if has_modules }} {{ 'is-collapsed' if has_modules and not selected_stages }}"
+      {% if has_modules %}data-mod="{{ ns.gid }}"{% endif %}>
     <td>
       <a href="/items/{{ v.item.id }}" style="font-weight:700; text-decoration:none;">{{ v.item.name }}</a>
       <div class="last-msg muted" style="margin-top:3px; font-size:12.5px;">{% if v.last_message %}💬 {{ v.last_message.text | truncate(60) }}{% endif %}</div>
@@ -69,6 +101,9 @@
         <form method="post" action="/items/{{ v.item.id }}/update" style="margin-top:8px;">
           <label>Найменування</label>
           <input type="text" name="name" value="{{ v.item.name }}" required>
+          <label>Модуль</label>
+          <input type="text" name="module" value="{{ v.item.module or '' }}"
+                 placeholder="напр. Модуль виносу (порожньо — без модуля)">
           <label>Специфікація</label>
           <textarea name="specification">{{ v.item.specification }}</textarea>
           <div class="grid c2">
@@ -181,6 +216,35 @@
 </table>
 </div>
 
+<script>
+  // Згортання/розгортання модулів у таблиці позицій.
+  function setModuleGroup(header, expanded) {
+    header.classList.toggle('open', expanded);
+    const gid = header.dataset.modToggle;
+    document.querySelectorAll('tr.mod-item[data-mod="' + gid + '"]').forEach((row) => {
+      row.classList.toggle('is-collapsed', !expanded);
+    });
+    const caret = header.querySelector('.caret');
+    if (caret) caret.textContent = expanded ? '▾' : '▸';
+  }
+  document.querySelectorAll('tr.module-row[data-mod-toggle]').forEach((header) => {
+    header.addEventListener('click', (e) => {
+      // клік по інтерактивному елементу всередині заголовка не згортає групу
+      if (e.target.closest('a, button, form, input, select')) return;
+      setModuleGroup(header, !header.classList.contains('open'));
+    });
+  });
+  const toggleAll = document.getElementById('toggle-all-modules');
+  if (toggleAll) {
+    toggleAll.addEventListener('click', () => {
+      const expand = toggleAll.dataset.expanded !== '1';
+      document.querySelectorAll('tr.module-row[data-mod-toggle]').forEach((h) => setModuleGroup(h, expand));
+      toggleAll.dataset.expanded = expand ? '1' : '0';
+      toggleAll.textContent = expand ? 'Згорнути всі модулі' : 'Розгорнути всі модулі';
+    });
+  }
+</script>
+
 {% if visible_items %}
 <div class="card" style="margin-top:14px;">
   <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
@@ -216,6 +280,8 @@
     <div>
       <label>Найменування</label>
       <input type="text" name="name" required>
+      <label>Модуль</label>
+      <input type="text" name="module" placeholder="напр. Модуль виносу (необовʼязково)">
       <label>Специфікація</label>
       <textarea name="specification"></textarea>
     </div>

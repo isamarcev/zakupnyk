@@ -50,6 +50,7 @@ def line_item_from_row(row: LineItemRow) -> LineItem:
         qty_in_progress=row.qty_in_progress,
         unit_price=row.unit_price,
         stage=ItemStage(row.stage),
+        module=row.module,
         created_at=row.created_at,
     )
 

@@ -78,6 +78,7 @@ class SqlLineItemRepository:
             qty_in_progress=item.qty_in_progress,
             unit_price=item.unit_price,
             stage=item.stage.value,
+            module=item.module,
             created_at=item.created_at,
         )
         self.session.add(row)
@@ -111,6 +112,7 @@ class SqlLineItemRepository:
         row.qty_in_progress = item.qty_in_progress
         row.unit_price = item.unit_price
         row.stage = item.stage.value
+        row.module = item.module
         self.session.flush()
 
     def delete(self, item_id: int) -> None:

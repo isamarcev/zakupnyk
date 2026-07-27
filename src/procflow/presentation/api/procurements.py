@@ -96,9 +96,7 @@ def procurement_details(
 
 
 @router.post("/procurements/{procurement_id}/open-folder")
-def open_procurement_folder(
-    procurement_id: int, uow: UnitOfWork = Depends(get_uow)
-) -> Response:
+def open_procurement_folder(procurement_id: int, uow: UnitOfWork = Depends(get_uow)) -> Response:
     """Reveal the procurement's document folder in the OS file manager (local run only)."""
     procurement = uow.procurements.get(procurement_id)
     uow.storage.reveal_folder(procurement.name)
@@ -144,6 +142,7 @@ def add_line_item(
     specification: str = Form(""),
     qty_required: str = Form("0"),
     unit_price: str = Form(""),
+    module: str = Form(""),
     uow: UnitOfWork = Depends(get_uow),
 ) -> RedirectResponse:
     uow.add_line_item(
@@ -153,6 +152,7 @@ def add_line_item(
             specification=specification,
             qty_required=_parse_optional_float(qty_required) or 0.0,
             unit_price=_parse_optional_float(unit_price),
+            module=module,
         ),
     )
     return RedirectResponse(f"/procurements/{procurement_id}", status_code=303)
@@ -167,6 +167,7 @@ def update_line_item(
     qty_ordered: str = Form("0"),
     qty_in_progress: str = Form("0"),
     unit_price: str = Form(""),
+    module: str = Form(""),
     uow: UnitOfWork = Depends(get_uow),
 ) -> RedirectResponse:
     item = uow.update_line_item(
@@ -178,6 +179,7 @@ def update_line_item(
             qty_ordered=_parse_optional_float(qty_ordered) or 0.0,
             qty_in_progress=_parse_optional_float(qty_in_progress) or 0.0,
             unit_price=_parse_optional_float(unit_price),
+            module=module,
         ),
     )
     return RedirectResponse(f"/procurements/{item.procurement_id}", status_code=303)

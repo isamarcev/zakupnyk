@@ -44,6 +44,7 @@ class LineItemInput:
     qty_ordered: float = 0.0
     qty_in_progress: float = 0.0
     unit_price: float | None = None
+    module: str | None = None
 
 
 @dataclass(slots=True)

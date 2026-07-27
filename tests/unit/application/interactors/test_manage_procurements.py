@@ -52,6 +52,25 @@ def test_set_item_stage_persists(uow: UnitOfWork) -> None:
     assert uow.items.get(item.id).stage is ItemStage.SENT_FOR_PAYMENT
 
 
+def test_line_item_module_is_trimmed_and_emptied_to_none(uow: UnitOfWork) -> None:
+    procurement = uow.create_procurement(CreateProcurementInput(name="З модулями"))
+    assert procurement.id is not None
+
+    item = uow.add_line_item(
+        procurement.id,
+        LineItemInput(name="Мотор dc", qty_required=2, module="  Модуль поворотний  "),
+    )
+    assert item.id is not None
+    assert item.module == "Модуль поворотний"
+    assert uow.items.get(item.id).module == "Модуль поворотний"
+
+    cleared = uow.update_line_item(
+        item.id, LineItemInput(name="Мотор dc", qty_required=2, module="   ")
+    )
+    assert cleared.module is None
+    assert uow.items.get(item.id).module is None
+
+
 def test_delete_procurement_missing_raises(uow: UnitOfWork) -> None:
     with pytest.raises(ProcurementNotFoundError):
         uow.delete_procurement(99999)

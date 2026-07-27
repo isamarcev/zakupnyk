@@ -25,6 +25,14 @@ def _require_name(name: str) -> str:
     return cleaned
 
 
+def _clean_module(module: str | None) -> str | None:
+    """Empty/whitespace module means «без модуля» (a flat, ungrouped item)."""
+    if module is None:
+        return None
+    cleaned = module.strip()
+    return cleaned or None
+
+
 @dataclass(slots=True)
 class CreateProcurement:
     procurements: ProcurementRepository
@@ -83,6 +91,7 @@ class AddLineItem:
                 qty_ordered=data.qty_ordered,
                 qty_in_progress=data.qty_in_progress,
                 unit_price=data.unit_price,
+                module=_clean_module(data.module),
             )
         )
 
@@ -99,6 +108,7 @@ class UpdateLineItem:
         item.qty_ordered = data.qty_ordered
         item.qty_in_progress = data.qty_in_progress
         item.unit_price = data.unit_price
+        item.module = _clean_module(data.module)
         self.items.update(item)
         return item
 
