@@ -1,6 +1,6 @@
 [project]
 name = "procflow"
-version = "0.1.0"
+version = "1.0.0"
 description = "Облік закупівель та документів — локальний веб-додаток"
 requires-python = ">=3.11"
 dependencies = [
