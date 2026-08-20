@@ -76,7 +76,7 @@
     .flash.show { opacity: .92; }
   </style>
 </head>
-<body>
+<body {% block body_attrs %}{% endblock %}>
   <nav>
     <span class="brand" style="display:flex; align-items:center; gap:8px;">
       <svg viewBox="0 0 64 64" width="22" height="22" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="60" height="60" rx="14" fill="#0057B7"/><polygon points="14,26 32,18 26,10 10,17" fill="#FFD700" opacity="0.85"/><polygon points="50,26 32,18 38,10 54,17" fill="#FFD700" opacity="0.85"/><rect x="14" y="26" width="36" height="26" rx="3" fill="#FFD700"/><path d="M24 38 L30 44 L41 32" fill="none" stroke="#0057B7" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -200,6 +200,90 @@
           showFlash('Видалено');
         })
         .catch(() => showFlash('Помилка видалення'));
+    });
+
+    // ── Збереження форм без перезавантаження сторінки ────────────────────────
+    // Вмикається на сторінках з <body data-ajax-forms="1">. POST іде через fetch,
+    // після чого вміст <main> замінюється свіжим HTML. Розгорнуті модулі, відкриті
+    // блоки «редагувати», скрол і фокус лишаються там, де були.
+    const AJAX_SKIP = 'form.js-del, form.msg-add, form.js-open-folder';
+
+    function detailsKey(el) {
+      const form = el.querySelector('form[action]');
+      const summary = el.querySelector('summary');
+      return (form ? form.getAttribute('action') : '?')
+        + '|' + (summary ? summary.textContent.trim() : '');
+    }
+
+    function fieldKey(el) {
+      if (!el || !el.form || !el.name) return null;
+      return (el.form.getAttribute('action') || '') + '|' + el.name;
+    }
+
+    function captureUiState() {
+      return {
+        scroll: window.scrollY,
+        open: new Set([...document.querySelectorAll('main details[open]')].map(detailsKey)),
+        focus: fieldKey(document.activeElement),
+      };
+    }
+
+    function restoreUiState(state) {
+      document.querySelectorAll('main details').forEach((el) => {
+        if (state.open.has(detailsKey(el))) el.open = true;
+      });
+      // сторінка сама відновлює свій стан (напр. розгорнуті модулі) до скролу
+      document.dispatchEvent(new CustomEvent('page:refreshed'));
+      window.scrollTo(0, state.scroll);
+      if (!state.focus) return;
+      const field = [...document.querySelectorAll('main [name]')]
+        .find((el) => fieldKey(el) === state.focus);
+      if (!field) return;
+      field.focus({ preventScroll: true });
+      if (field.setSelectionRange && field.type === 'text') {
+        try { field.setSelectionRange(field.value.length, field.value.length); } catch {}
+      }
+    }
+
+    function swapMain(html) {
+      const fresh = new DOMParser().parseFromString(html, 'text/html').querySelector('main');
+      if (!fresh) throw new Error('no main');
+      const state = captureUiState();
+      // <script> з розібраного HTML не виконуються — обробники вже висять на document
+      document.querySelector('main').replaceChildren(...fresh.childNodes);
+      renderTitlePresets();
+      restoreUiState(state);
+    }
+
+    function errorMessage(html) {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const msg = doc.querySelector('main .card b');
+      return msg ? msg.textContent.trim() : '';
+    }
+
+    document.addEventListener('submit', async (e) => {
+      if (document.body.dataset.ajaxForms !== '1' || e.defaultPrevented) return;
+      const form = e.target.closest('form');
+      if (!form || form.method.toLowerCase() !== 'post' || form.matches(AJAX_SKIP)) return;
+      e.preventDefault();
+      const buttons = [...form.querySelectorAll('button')];
+      buttons.forEach((b) => { b.disabled = true; });
+      try {
+        const res = await fetch(form.action, { method: 'POST', body: new FormData(form) });
+        const body = await res.text();
+        if (!res.ok) throw new Error(errorMessage(body) || 'Помилка збереження');
+        // редирект на іншу сторінку (напр. видалення закупівлі) — переходимо туди
+        if (new URL(res.url, location.href).pathname !== location.pathname) {
+          location.href = res.url;
+          return;
+        }
+        // res.url губить фільтри стадій із адреси — тоді перечитуємо поточну сторінку
+        swapMain(res.url === location.href ? body : await (await fetch(location.href)).text());
+        showFlash('Збережено');
+      } catch (err) {
+        buttons.forEach((b) => { b.disabled = false; });
+        showFlash(err.message || 'Помилка збереження');
+      }
     });
   </script>
 </body>

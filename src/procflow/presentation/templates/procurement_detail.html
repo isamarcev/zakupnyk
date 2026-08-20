@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ d.procurement.name }}{% endblock %}
+{% block body_attrs %}data-ajax-forms="1"{% endblock %}
 {% block content %}
 <h1>{{ d.procurement.name }}
   <span class="badge {{ d.procurement.status.value }}">{{ d.procurement.status.label_uk }}</span>
@@ -70,6 +71,7 @@
   {% set ns.gid = ns.gid + 1 %}
   {% set group_items = visible_items | selectattr('item.module', 'equalto', v.item.module) | list %}
   <tr class="module-row {{ 'open' if selected_stages }}" data-mod-toggle="{{ ns.gid }}"
+      data-mod-name="{{ v.item.module or '' }}"
       style="cursor:pointer; user-select:none;">
     <td colspan="9" style="background:#eef2f7; font-weight:700; padding:8px 10px; font-size:14px;">
       <span class="caret" style="display:inline-block; width:14px; color:var(--muted);">{{ '▾' if selected_stages else '▸' }}</span>
@@ -218,6 +220,24 @@
 
 <script>
   // Згортання/розгортання модулів у таблиці позицій.
+  // Стан кожної групи запам'ятовується в sessionStorage, тож переживає і збереження
+  // форми (сторінка оновлюється через fetch), і перехід за фільтром стадій.
+  const MODULES_KEY = 'zk_modules_{{ d.procurement.id }}';
+
+  function moduleHeaders() {
+    return [...document.querySelectorAll('tr.module-row[data-mod-toggle]')];
+  }
+
+  function readModuleState() {
+    try { return JSON.parse(sessionStorage.getItem(MODULES_KEY) || '{}'); } catch { return {}; }
+  }
+
+  function saveModuleState() {
+    const state = readModuleState();
+    moduleHeaders().forEach((h) => { state[h.dataset.modName] = h.classList.contains('open'); });
+    try { sessionStorage.setItem(MODULES_KEY, JSON.stringify(state)); } catch {}
+  }
+
   function setModuleGroup(header, expanded) {
     header.classList.toggle('open', expanded);
     const gid = header.dataset.modToggle;
@@ -227,22 +247,47 @@
     const caret = header.querySelector('.caret');
     if (caret) caret.textContent = expanded ? '▾' : '▸';
   }
-  document.querySelectorAll('tr.module-row[data-mod-toggle]').forEach((header) => {
-    header.addEventListener('click', (e) => {
+
+  function syncToggleAll() {
+    const btn = document.getElementById('toggle-all-modules');
+    if (!btn) return;
+    const collapsed = moduleHeaders().some((h) => !h.classList.contains('open'));
+    btn.dataset.expanded = collapsed ? '0' : '1';
+    btn.textContent = collapsed ? 'Розгорнути всі модулі' : 'Згорнути всі модулі';
+  }
+
+  function applyModuleState() {
+    const state = readModuleState();
+    // модуль, якого ще немає в пам'яті, лишається таким, як віддав сервер
+    moduleHeaders().forEach((h) => {
+      const saved = state[h.dataset.modName];
+      if (typeof saved === 'boolean') setModuleGroup(h, saved);
+    });
+    syncToggleAll();
+  }
+
+  document.addEventListener('click', (e) => {
+    const header = e.target.closest('tr.module-row[data-mod-toggle]');
+    if (header) {
       // клік по інтерактивному елементу всередині заголовка не згортає групу
       if (e.target.closest('a, button, form, input, select')) return;
       setModuleGroup(header, !header.classList.contains('open'));
-    });
+      syncToggleAll();
+      saveModuleState();
+      return;
+    }
+    if (e.target.closest('#toggle-all-modules')) {
+      const btn = document.getElementById('toggle-all-modules');
+      const expand = btn.dataset.expanded !== '1';
+      moduleHeaders().forEach((h) => setModuleGroup(h, expand));
+      syncToggleAll();
+      saveModuleState();
+    }
   });
-  const toggleAll = document.getElementById('toggle-all-modules');
-  if (toggleAll) {
-    toggleAll.addEventListener('click', () => {
-      const expand = toggleAll.dataset.expanded !== '1';
-      document.querySelectorAll('tr.module-row[data-mod-toggle]').forEach((h) => setModuleGroup(h, expand));
-      toggleAll.dataset.expanded = expand ? '1' : '0';
-      toggleAll.textContent = expand ? 'Згорнути всі модулі' : 'Розгорнути всі модулі';
-    });
-  }
+
+  // після збереження форми <main> перемальовується — повертаємо групи на місце
+  document.addEventListener('page:refreshed', applyModuleState);
+  applyModuleState();
 </script>
 
 {% if visible_items %}
@@ -262,9 +307,12 @@
     Разом: {{ visible_items | map(attribute='item.total_price') | sum | money }} грн
   </div>
 </div>
+{% endif %}
+
 <script>
   // Копіює специфікацію простим текстом без посилань (локальні URL одержувачам не працюють).
-  document.getElementById('copy-spec').addEventListener('click', () => {
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#copy-spec')) return;
     const lines = [...document.querySelectorAll('#spec-lines .spec-line')]
       .map((line) => line.textContent.trim().replace(/\s+/g, ' '));
     lines.push(document.getElementById('spec-total').textContent.trim());
@@ -272,7 +320,6 @@
       .then(() => showFlash('Специфікацію скопійовано'));
   });
 </script>
-{% endif %}
 
 <div class="card" style="margin-top:14px;">
   <b>Додати позицію</b>
