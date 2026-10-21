@@ -1,6 +1,6 @@
 {
   "name": "procflow",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "procflow — облік закупівель та документів",
   "private": true,
   "scripts": {

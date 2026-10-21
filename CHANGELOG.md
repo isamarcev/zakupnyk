@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/isamarcev/zakupnyk/compare/1.0.0...1.1.0) (2026-10-21)
+
+
+### Features
+
+* some fixes ([1cc4cd6](https://github.com/isamarcev/zakupnyk/commit/1cc4cd6cd0c5bc803070537e7e51bc8d3d4cd8f4))
+
 # 1.0.0 (2026-07-27)
 
 
