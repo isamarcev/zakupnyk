@@ -9,6 +9,10 @@ from procflow.application.interfaces.repositories.procurement_repo import (
     ProcurementRepository,
 )
 from procflow.application.interfaces.repositories.recipient_repo import RecipientRepository
+from procflow.application.interfaces.repositories.stage_change_repo import StageChangeRepository
+from procflow.application.interfaces.repositories.supplier_order_repo import (
+    SupplierOrderRepository,
+)
 from procflow.application.interfaces.repositories.supplier_repo import SupplierRepository
 
 __all__ = [
@@ -19,5 +23,7 @@ __all__ = [
     "PayerRepository",
     "ProcurementRepository",
     "RecipientRepository",
+    "StageChangeRepository",
+    "SupplierOrderRepository",
     "SupplierRepository",
 ]

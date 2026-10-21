@@ -21,6 +21,8 @@ from procflow.infrastructure.repositories.procurement_repo import (
     SqlProcurementRepository,
 )
 from procflow.infrastructure.repositories.recipient_repo import SqlRecipientRepository
+from procflow.infrastructure.repositories.stage_change_repo import SqlStageChangeRepository
+from procflow.infrastructure.repositories.supplier_order_repo import SqlSupplierOrderRepository
 from procflow.infrastructure.repositories.supplier_repo import SqlSupplierRepository
 from procflow.infrastructure.xlsx_parser import parse_needs_xlsx
 from procflow.main.config import Settings
@@ -49,6 +51,8 @@ class Container:
                 payers=SqlPayerRepository(session),
                 recipients=SqlRecipientRepository(session),
                 messages=SqlMessageRepository(session),
+                stage_changes=SqlStageChangeRepository(session),
+                orders=SqlSupplierOrderRepository(session),
                 storage=self.storage,
                 needs_parser=parse_needs_xlsx,
             )

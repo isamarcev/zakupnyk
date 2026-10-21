@@ -16,6 +16,7 @@ from procflow.main.container import Container, build_container
 from procflow.presentation.api import (
     documents,
     import_xlsx,
+    orders,
     payers,
     procurements,
     recipients,
@@ -32,6 +33,7 @@ def create_app(container: Container) -> FastAPI:
     app.state.container = container
 
     app.include_router(procurements.router)
+    app.include_router(orders.router)
     app.include_router(suppliers.router)
     app.include_router(payers.router)
     app.include_router(recipients.router)

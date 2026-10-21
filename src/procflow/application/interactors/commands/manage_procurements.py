@@ -13,8 +13,15 @@ from procflow.application.dto import (
 from procflow.application.interfaces.repositories import (
     LineItemRepository,
     ProcurementRepository,
+    StageChangeRepository,
 )
-from procflow.domain.entities import ItemStage, LineItem, Procurement, ProcurementStatus
+from procflow.domain.entities import (
+    ItemStage,
+    LineItem,
+    Procurement,
+    ProcurementStatus,
+    StageChange,
+)
 from procflow.domain.exceptions import InvalidInputError
 
 
@@ -118,11 +125,18 @@ class SetItemStage:
     """Quick stage switch from the items table (no full edit form)."""
 
     items: LineItemRepository
+    stage_changes: StageChangeRepository
 
     def __call__(self, item_id: int, stage: ItemStage) -> LineItem:
         item = self.items.get(item_id)
+        if item.stage is stage:
+            return item  # why: повтор тієї ж стадії не має засмічувати історію
         item.stage = stage
         self.items.update(item)
+        assert item.id is not None
+        self.stage_changes.add(
+            StageChange(id=None, line_item_id=item.id, stage=stage, changed_at=datetime.now())
+        )
         return item
 
 

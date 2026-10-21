@@ -10,7 +10,9 @@ from procflow.domain.entities.procurement import (
     ProcurementStatus,
 )
 from procflow.domain.entities.recipient import Recipient
+from procflow.domain.entities.stage_change import StageChange
 from procflow.domain.entities.supplier import Offer, Supplier, SupplierSource, normalize_url
+from procflow.domain.entities.supplier_order import SupplierOrder
 
 __all__ = [
     "Document",
@@ -23,7 +25,9 @@ __all__ = [
     "Procurement",
     "ProcurementStatus",
     "Recipient",
+    "StageChange",
     "Supplier",
+    "SupplierOrder",
     "SupplierSource",
     "normalize_url",
 ]

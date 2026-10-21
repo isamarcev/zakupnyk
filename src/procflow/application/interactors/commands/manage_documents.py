@@ -53,6 +53,7 @@ class AttachDocument:
                 amount=cmd.amount,
                 doc_date=cmd.doc_date,
                 note=cmd.note.strip(),
+                order_id=cmd.order_id,
                 line_item_ids=cmd.line_item_ids,
             )
         )

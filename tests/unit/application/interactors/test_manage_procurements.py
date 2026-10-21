@@ -74,3 +74,37 @@ def test_line_item_module_is_trimmed_and_emptied_to_none(uow: UnitOfWork) -> Non
 def test_delete_procurement_missing_raises(uow: UnitOfWork) -> None:
     with pytest.raises(ProcurementNotFoundError):
         uow.delete_procurement(99999)
+
+
+def test_stage_changes_are_recorded_with_dates(uow: UnitOfWork) -> None:
+    procurement = uow.create_procurement(CreateProcurementInput(name="Історія стадій"))
+    assert procurement.id is not None
+    item = uow.add_line_item(procurement.id, LineItemInput(name="Кабель", qty_required=1))
+    assert item.id is not None
+
+    # поки переходів не було — «з» рахуємо від дати створення позиції
+    view = next(
+        v for v in uow.get_procurement_details(procurement.id).items if v.item.id == item.id
+    )
+    assert view.stage_since == item.created_at
+
+    uow.set_item_stage(item.id, ItemStage.AWAITING_INVOICE)
+    uow.set_item_stage(item.id, ItemStage.AWAITING_INVOICE)  # повтор не пишемо в історію
+    uow.set_item_stage(item.id, ItemStage.PAID)
+
+    history = uow.stage_changes.list_for_item(item.id)
+    assert [c.stage for c in history] == [ItemStage.AWAITING_INVOICE, ItemStage.PAID]
+
+    view = next(
+        v for v in uow.get_procurement_details(procurement.id).items if v.item.id == item.id
+    )
+    assert view.stage_since == history[-1].changed_at
+
+    timeline = uow.get_line_item_details(item.id).stage_timeline
+    assert [s.stage for s in timeline] == [
+        ItemStage.NEW,
+        ItemStage.AWAITING_INVOICE,
+        ItemStage.PAID,
+    ]
+    assert timeline[0].at == item.created_at
+    assert all(step.at is not None for step in timeline)

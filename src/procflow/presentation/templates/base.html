@@ -72,6 +72,25 @@
     .spec { white-space: pre-wrap; font-size: 13px; color: var(--muted); max-width: 480px; }
     .copy { cursor: pointer; background: var(--accent-soft); border: 1px solid var(--border); color: var(--text); padding: 3px 8px; border-radius: 6px; font-size: 13px; font-family: ui-monospace, monospace; }
     .copy:hover { border-color: var(--accent); }
+    .bulk { position: fixed; left: 50%; transform: translateX(-50%); bottom: 16px; z-index: 50;
+      background: var(--text); color: #fff; border-radius: 12px; padding: 10px 14px;
+      display: none; gap: 9px; align-items: center; flex-wrap: wrap;
+      box-shadow: 0 8px 24px rgba(0,0,0,.28); max-width: calc(100vw - 32px); }
+    .bulk.show { display: flex; }
+    .bulk select, .bulk input[type=text] { width: auto; padding: 5px 8px; font-size: 13px; }
+    .bulk button { padding: 6px 11px; font-size: 13px; }
+    .bulk button.ghost { color: #cbd5e1; border-color: #475569; }
+    .bulk .sep { opacity: .3; }
+    .bulk details { margin: 0; }
+    .bulk summary { color: #93c5fd; }
+    .stage-mixed { background: #e2e8f0; color: #475569; }
+    .order-chip { display: inline-block; background: var(--accent-soft); color: var(--accent);
+      border: 1px solid #dbe4ff; border-radius: 99px; padding: 1px 8px; font-size: 12px;
+      font-weight: 600; text-decoration: none; }
+    .order-chip:hover { border-color: var(--accent); }
+    td.pick-cell { width: 32px; padding-right: 0; }
+    .spec-head { font-weight: 700; margin: 12px 0 3px; }
+    .spec-sub { color: var(--muted); font-size: 13px; margin: 2px 0 4px; }
     .flash { position: fixed; bottom: 18px; right: 18px; background: var(--text); color: #fff; padding: 9px 16px; border-radius: 8px; opacity: 0; transition: opacity .2s; pointer-events: none; }
     .flash.show { opacity: .92; }
   </style>
@@ -118,18 +137,24 @@
         .catch(() => showFlash('Не вдалося відкрити папку'));
     });
     // Зміна стадії без перезавантаження сторінки (скрол лишається на місці)
-    document.addEventListener('change', (e) => {
+    document.addEventListener('change', async (e) => {
       const select = e.target.closest('select.stage');
       if (!select) return;
-      const form = select.form;
-      fetch(form.action, { method: 'POST', body: new FormData(form) })
-        .then((r) => {
-          if (!r.ok) throw new Error();
-          select.className = 'stage stage-' + select.value;
-          showFlash('Стадію збережено');
-        })
-        .catch(() => showFlash('Помилка збереження'));
       e.preventDefault();
+      try {
+        const res = await fetch(select.form.action, {
+          method: 'POST', body: new FormData(select.form),
+        });
+        if (!res.ok) throw new Error();
+        select.className = 'stage stage-' + select.value;
+        // на сторінці закупівлі перемальовуємо <main>, щоб оновилась дата переходу
+        if (document.body.dataset.ajaxForms === '1') {
+          swapMain(await (await fetch(location.href)).text());
+        }
+        showFlash('Стадію збережено');
+      } catch {
+        showFlash('Помилка збереження');
+      }
     });
 
     // Теги-передвибір для назви документа (зберігаються в браузері)
@@ -266,10 +291,13 @@
       const form = e.target.closest('form');
       if (!form || form.method.toLowerCase() !== 'post' || form.matches(AJAX_SKIP)) return;
       e.preventDefault();
+      // кнопка з formaction шле ту саму форму на інший ендпоінт (панель масових дій)
+      const action = (e.submitter && e.submitter.hasAttribute('formaction'))
+        ? e.submitter.formAction : form.action;
       const buttons = [...form.querySelectorAll('button')];
       buttons.forEach((b) => { b.disabled = true; });
       try {
-        const res = await fetch(form.action, { method: 'POST', body: new FormData(form) });
+        const res = await fetch(action, { method: 'POST', body: new FormData(form) });
         const body = await res.text();
         if (!res.ok) throw new Error(errorMessage(body) || 'Помилка збереження');
         // редирект на іншу сторінку (напр. видалення закупівлі) — переходимо туди

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from procflow.domain.entities import LineItem, Procurement
@@ -79,6 +79,7 @@ class SqlLineItemRepository:
             unit_price=item.unit_price,
             stage=item.stage.value,
             module=item.module,
+            order_id=item.order_id,
             created_at=item.created_at,
         )
         self.session.add(row)
@@ -113,6 +114,15 @@ class SqlLineItemRepository:
         row.unit_price = item.unit_price
         row.stage = item.stage.value
         row.module = item.module
+        row.order_id = item.order_id
+        self.session.flush()
+
+    def set_order(self, item_ids: list[int], order_id: int | None) -> None:
+        if not item_ids:
+            return
+        self.session.execute(
+            update(LineItemRow).where(LineItemRow.id.in_(item_ids)).values(order_id=order_id)
+        )
         self.session.flush()
 
     def delete(self, item_id: int) -> None:

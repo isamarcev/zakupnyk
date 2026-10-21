@@ -36,6 +36,7 @@ class SqlDocumentRepository:
             amount=document.amount,
             doc_date=document.doc_date,
             note=document.note,
+            order_id=document.order_id,
             created_at=document.created_at,
         )
         self.session.add(row)

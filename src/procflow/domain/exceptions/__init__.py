@@ -12,6 +12,7 @@ from procflow.domain.exceptions.errors import (
     RecipientNotFoundError,
     StorageError,
     SupplierNotFoundError,
+    SupplierOrderNotFoundError,
     XlsxImportError,
 )
 
@@ -27,5 +28,6 @@ __all__ = [
     "RecipientNotFoundError",
     "StorageError",
     "SupplierNotFoundError",
+    "SupplierOrderNotFoundError",
     "XlsxImportError",
 ]

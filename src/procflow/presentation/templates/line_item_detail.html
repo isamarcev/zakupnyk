@@ -6,6 +6,11 @@
 </p>
 <h1>{{ d.item.name }}
   <span class="badge stage-{{ d.item.stage.value }}" style="font-size:13px;">{{ d.item.stage.label_uk }}</span>
+  {% if d.order %}
+  <a class="order-chip" style="font-size:13px;"
+     href="/procurements/{{ d.procurement.id }}?group=order&order={{ d.order.id }}"
+     title="Купується разом з іншими позиціями цього замовлення">📦 {{ d.order.display_title() }}{% if d.order_supplier %} · {{ d.order_supplier.name }}{% endif %}</a>
+  {% endif %}
 </h1>
 
 <div class="card">
@@ -19,6 +24,24 @@
   {% if d.item.specification %}
   <div class="spec" style="margin-top:8px;">{{ d.item.specification }}</div>
   {% endif %}
+</div>
+
+<div class="card">
+  <b>Історія стадій</b>
+  <div style="margin-top:10px; display:flex; flex-direction:column; gap:4px;">
+    {% for step in d.stage_timeline %}
+    <div style="display:flex; align-items:center; gap:10px;">
+      <span class="badge stage-{{ step.stage.value }}">{{ step.stage.label_uk }}</span>
+      <span class="muted">
+        {% if step.at %}{{ step.at.strftime('%d.%m.%Y %H:%M') }}{% else %}дата невідома{% endif %}
+        {{ '· поточна' if loop.last }}
+      </span>
+    </div>
+    {% if not loop.last %}
+    <div class="muted" style="padding-left:14px; line-height:1;">↓</div>
+    {% endif %}
+    {% endfor %}
+  </div>
 </div>
 
 <div class="grid c2">

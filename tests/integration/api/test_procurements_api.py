@@ -160,10 +160,10 @@ def test_module_groups_collapsed_by_default(client: TestClient) -> None:
     )
 
     page = client.get(f"/procurements/{procurement_id}").text
-    # заголовок модуля клікабельний (data-mod-toggle) і позиція згорнута за замовчуванням
-    assert "data-mod-toggle=" in page
-    assert "mod-item is-collapsed" in page
-    assert "Розгорнути всі модулі" in page
+    # заголовок модуля клікабельний (data-grp-toggle) і позиція згорнута за замовчуванням
+    assert "data-grp-toggle=" in page
+    assert "grp-item is-collapsed" in page
+    assert "Розгорнути всі" in page
 
 
 def test_stage_filter_expands_module_groups(client: TestClient) -> None:
@@ -180,7 +180,7 @@ def test_stage_filter_expands_module_groups(client: TestClient) -> None:
         0
     ]
     # при активному фільтрі групи показані розгорнутими (рядок без is-collapsed)
-    assert "mod-item is-collapsed" not in listing
+    assert "grp-item is-collapsed" not in listing
     assert "Мотор dc" in listing
 
 
@@ -194,7 +194,7 @@ def test_flat_procurement_shows_no_module_headers(client: TestClient) -> None:
     )
 
     listing = client.get(f"/procurements/{procurement_id}").text.split("Додати позицію")[0]
-    assert "🧩" not in listing
+    assert "data-grp-toggle=" not in listing
 
 
 def test_payers_crud(client: TestClient) -> None:

@@ -50,6 +50,10 @@ class LineItemRepository(Protocol):
         """Update mutable fields (name, spec, quantities, price)."""
         ...
 
+    def set_order(self, item_ids: list[int], order_id: int | None) -> None:
+        """Attach the given items to an order (or detach them when None)."""
+        ...
+
     def delete(self, item_id: int) -> None:
         """Remove the item and its offers."""
         ...

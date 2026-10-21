@@ -63,12 +63,30 @@ class LineItemRow(Base):
     unit_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     stage: Mapped[str] = mapped_column(String(20), default="new")
     module: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    order_id: Mapped[int | None] = mapped_column(
+        ForeignKey("supplier_orders.id", ondelete="SET NULL"), index=True, nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 
     procurement: Mapped[ProcurementRow] = relationship(back_populates="items")
     offers: Mapped[list[OfferRow]] = relationship(
         back_populates="line_item", cascade="all, delete-orphan"
     )
+
+
+class SupplierOrderRow(Base):
+    __tablename__ = "supplier_orders"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    procurement_id: Mapped[int] = mapped_column(
+        ForeignKey("procurements.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    supplier_id: Mapped[int | None] = mapped_column(
+        ForeignKey("suppliers.id", ondelete="SET NULL"), index=True, nullable=True
+    )
+    title: Mapped[str] = mapped_column(String(300), default="")
+    note: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 
 
 class MessageRow(Base):
@@ -80,6 +98,17 @@ class MessageRow(Base):
     )
     text: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
+class StageChangeRow(Base):
+    __tablename__ = "item_stage_changes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    line_item_id: Mapped[int] = mapped_column(
+        ForeignKey("line_items.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    stage: Mapped[str] = mapped_column(String(20), nullable=False)
+    changed_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 
 
 class SupplierRow(Base):
@@ -162,6 +191,9 @@ class DocumentRow(Base):
     amount: Mapped[float | None] = mapped_column(Float, nullable=True)
     doc_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     note: Mapped[str] = mapped_column(Text, default="")
+    order_id: Mapped[int | None] = mapped_column(
+        ForeignKey("supplier_orders.id", ondelete="SET NULL"), index=True, nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 
     procurement: Mapped[ProcurementRow] = relationship(back_populates="documents")
@@ -204,6 +236,8 @@ def _ensure_added_columns(engine: Engine) -> None:
         ("payers", "requisites", "TEXT NOT NULL DEFAULT ''"),
         ("line_items", "stage", "VARCHAR(20) NOT NULL DEFAULT 'new'"),
         ("line_items", "module", "VARCHAR(300)"),
+        ("line_items", "order_id", "INTEGER REFERENCES supplier_orders(id)"),
+        ("documents", "order_id", "INTEGER REFERENCES supplier_orders(id)"),
     ]
     with engine.begin() as connection:
         for table, column, ddl_type in added_columns:

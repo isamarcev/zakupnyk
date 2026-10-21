@@ -45,5 +45,7 @@ class Document:
     amount: float | None = None
     doc_date: date | None = None
     note: str = ""
+    order_id: int | None = None
+    """Замовлення, до якого належить документ (один рахунок на кілька позицій)."""
     line_item_ids: list[int] = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.now)

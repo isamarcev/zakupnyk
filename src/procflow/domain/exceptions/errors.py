@@ -43,6 +43,11 @@ class SupplierNotFoundError(DomainError):
     status = 404
 
 
+class SupplierOrderNotFoundError(DomainError):
+    code = "supplier_order_not_found"
+    status = 404
+
+
 class OfferNotFoundError(DomainError):
     code = "offer_not_found"
     status = 404

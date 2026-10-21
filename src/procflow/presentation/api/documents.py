@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 from datetime import date
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Form, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, Form, Query, Request, Response, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
 from procflow.application.dto import AttachDocumentInput
+from procflow.application.interactors.queries.group_items import GROUP_MODES
 from procflow.application.uow import UnitOfWork
-from procflow.domain.entities import DocumentKind
+from procflow.domain.entities import DocumentKind, ItemStage
+from procflow.infrastructure.archive import build_zip
 from procflow.presentation.api.deps import get_uow
 from procflow.presentation.templating import templates
 
@@ -46,6 +49,7 @@ async def _attach(
     doc_date: str,
     note: str,
     line_item_ids: list[int],
+    order_id: int | None = None,
 ) -> None:
     content = await file.read()
     amount_cleaned = amount.strip().replace(",", ".").replace(" ", "")
@@ -61,6 +65,7 @@ async def _attach(
             amount=float(amount_cleaned) if amount_cleaned else None,
             doc_date=date.fromisoformat(doc_date) if doc_date.strip() else None,
             note=note,
+            order_id=order_id,
             line_item_ids=line_item_ids,
         )
     )
@@ -98,6 +103,47 @@ async def upload_item_document(
     return RedirectResponse(f"/procurements/{item.procurement_id}", status_code=303)
 
 
+@router.post("/orders/{order_id}/documents")
+async def upload_order_document(
+    order_id: int,
+    file: UploadFile,
+    title: str = Form(""),
+    kind: str = Form(DocumentKind.INVOICE.value),
+    payer_id: str = Form(""),
+    amount: str = Form(""),
+    doc_date: str = Form(""),
+    note: str = Form(""),
+    uow: UnitOfWork = Depends(get_uow),
+) -> RedirectResponse:
+    """Один рахунок на все замовлення: привʼязується до кожної його позиції.
+
+    why: раніше той самий файл вантажили по разу на позицію (4 копії одного
+    рахунка в архіві) — тепер завантаження одне, а в рядках позицій він видний
+    через ті самі звʼязки document_item_links.
+    """
+    order = uow.orders.get(order_id)
+    item_ids = [
+        i.id
+        for i in uow.items.list_for_procurement(order.procurement_id)
+        if i.order_id == order_id and i.id is not None
+    ]
+    await _attach(
+        uow,
+        procurement_id=order.procurement_id,
+        file=file,
+        title=title,
+        kind=kind,
+        supplier_id=str(order.supplier_id or ""),
+        payer_id=payer_id,
+        amount=amount,
+        doc_date=doc_date,
+        note=note,
+        line_item_ids=item_ids,
+        order_id=order_id,
+    )
+    return RedirectResponse(f"/procurements/{order.procurement_id}", status_code=303)
+
+
 @router.post("/procurements/{procurement_id}/documents")
 async def upload_document(
     procurement_id: int,
@@ -127,6 +173,35 @@ async def upload_document(
         line_item_ids=line_item_ids,
     )
     return RedirectResponse(f"/procurements/{procurement_id}", status_code=303)
+
+
+@router.get("/procurements/{procurement_id}/documents.zip")
+def export_documents(
+    procurement_id: int,
+    stage: list[str] = Query([]),
+    order: int | None = Query(None),
+    item: list[int] = Query([]),
+    kind: list[str] = Query([]),
+    group: str = Query("module"),
+    uow: UnitOfWork = Depends(get_uow),
+) -> Response:
+    """Архів документів по тому, що зараз відфільтровано/вибрано на сторінці."""
+    bundle = uow.export_documents(
+        procurement_id,
+        stages={ItemStage(s) for s in stage if s},
+        order_id=order,
+        item_ids=item,
+        kinds={DocumentKind(k) for k in kind if k},
+        group=group if group in GROUP_MODES else "module",
+    )
+    content = build_zip(bundle, uow.storage.absolute_path)
+    # RFC 5987: кирилиця в імені файлу лишається читабельною в браузері
+    disposition = f"attachment; filename*=UTF-8''{quote(bundle.filename)}"
+    return Response(
+        content=content,
+        media_type="application/zip",
+        headers={"content-disposition": disposition},
+    )
 
 
 _INLINE_SUFFIXES = {".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".txt"}

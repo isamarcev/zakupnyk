@@ -67,7 +67,9 @@ class LineItem:
 
     Quantities: ``qty_required`` is the target; ``qty_ordered`` is paid/ordered;
     ``qty_in_progress`` is being negotiated or shipped. ``stage`` tracks the
-    paperwork workflow (рахунок → оплата → поставка → закриття).
+    paperwork workflow (рахунок → оплата → поставка → закриття). ``module`` —
+    інженерна група («що це»), ``order_id`` — комерційна («чим одним рахунком
+    купуємо»); осі незалежні, обидві опційні.
     """
 
     id: int | None
@@ -80,6 +82,7 @@ class LineItem:
     unit_price: float | None = None
     stage: ItemStage = ItemStage.NEW
     module: str | None = None
+    order_id: int | None = None
     created_at: datetime = field(default_factory=datetime.now)
 
     @property

@@ -17,6 +17,15 @@ from procflow.application.interactors.commands.manage_messages import (
     AddMessage,
     DeleteMessage,
 )
+from procflow.application.interactors.commands.manage_orders import (
+    AssignItemsToOrder,
+    CreateSupplierOrder,
+    DeleteSupplierOrder,
+    DetachItemsFromOrder,
+    SetItemsStage,
+    SetOrderStage,
+    UpdateSupplierOrder,
+)
 from procflow.application.interactors.commands.manage_payers import (
     CreatePayer,
     DeletePayer,
@@ -42,7 +51,11 @@ from procflow.application.interactors.commands.manage_suppliers import (
     AddOffer,
     CreateSupplier,
     DeleteOffer,
+    ResolveSupplier,
     UpdateSupplier,
+)
+from procflow.application.interactors.queries.export_documents import (
+    ExportProcurementDocuments,
 )
 from procflow.application.interactors.queries.get_line_item import GetLineItemDetails
 from procflow.application.interactors.queries.get_procurements import (
@@ -63,6 +76,8 @@ from procflow.application.interfaces.repositories import (
     PayerRepository,
     ProcurementRepository,
     RecipientRepository,
+    StageChangeRepository,
+    SupplierOrderRepository,
     SupplierRepository,
 )
 
@@ -79,6 +94,8 @@ class UnitOfWork:
     payers: PayerRepository
     recipients: RecipientRepository
     messages: MessageRepository
+    stage_changes: StageChangeRepository
+    orders: SupplierOrderRepository
     storage: FileStorage
     needs_parser: NeedsParser
 
@@ -109,7 +126,39 @@ class UnitOfWork:
 
     @property
     def set_item_stage(self) -> SetItemStage:
-        return SetItemStage(self.items)
+        return SetItemStage(self.items, self.stage_changes)
+
+    @property
+    def create_order(self) -> CreateSupplierOrder:
+        return CreateSupplierOrder(self.orders, self.procurements, self.items, self.suppliers)
+
+    @property
+    def update_order(self) -> UpdateSupplierOrder:
+        return UpdateSupplierOrder(self.orders, self.suppliers)
+
+    @property
+    def delete_order(self) -> DeleteSupplierOrder:
+        return DeleteSupplierOrder(self.orders)
+
+    @property
+    def assign_items_to_order(self) -> AssignItemsToOrder:
+        return AssignItemsToOrder(self.orders, self.items)
+
+    @property
+    def detach_items_from_order(self) -> DetachItemsFromOrder:
+        return DetachItemsFromOrder(self.items)
+
+    @property
+    def set_items_stage(self) -> SetItemsStage:
+        return SetItemsStage(self.items, self.stage_changes)
+
+    @property
+    def set_order_stage(self) -> SetOrderStage:
+        return SetOrderStage(self.orders, self.items, self.stage_changes)
+
+    @property
+    def resolve_supplier(self) -> ResolveSupplier:
+        return ResolveSupplier(self.suppliers)
 
     @property
     def create_supplier(self) -> CreateSupplier:
@@ -161,13 +210,31 @@ class UnitOfWork:
     @property
     def get_procurement_details(self) -> GetProcurementDetails:
         return GetProcurementDetails(
-            self.procurements, self.items, self.offers, self.documents, self.messages
+            self.procurements,
+            self.items,
+            self.offers,
+            self.documents,
+            self.messages,
+            self.stage_changes,
+            self.orders,
+            self.suppliers,
         )
+
+    @property
+    def export_documents(self) -> ExportProcurementDocuments:
+        return ExportProcurementDocuments(self.get_procurement_details)
 
     @property
     def get_line_item_details(self) -> GetLineItemDetails:
         return GetLineItemDetails(
-            self.items, self.procurements, self.offers, self.documents, self.messages
+            self.items,
+            self.procurements,
+            self.offers,
+            self.documents,
+            self.messages,
+            self.stage_changes,
+            self.orders,
+            self.suppliers,
         )
 
     @property

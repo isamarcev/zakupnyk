@@ -1,6 +1,251 @@
 {% extends "base.html" %}
 {% block title %}{{ d.procurement.name }}{% endblock %}
 {% block body_attrs %}data-ajax-forms="1"{% endblock %}
+
+{#- Один рядок позиції. Використовується і згрупованим виводом, і плоским. -#}
+{% macro item_row(v, group_id) %}
+<tr class="{{ 'grp-item' if group_id }} {{ 'is-collapsed' if group_id and collapsed_default }}"
+    {% if group_id %}data-grp="{{ group_id }}"{% endif %}>
+  <td class="pick-cell">
+    <input type="checkbox" class="pick" value="{{ v.item.id }}" aria-label="Вибрати позицію">
+  </td>
+  <td>
+    <a href="/items/{{ v.item.id }}" style="font-weight:700; text-decoration:none;">{{ v.item.name }}</a>
+    {% if v.order and group_mode != 'order' %}
+    <a class="order-chip" style="margin-left:6px;" href="{{ order_links[v.order.id] }}"
+       title="Замовлення: {{ v.order.display_title() }}">📦 {{ v.order.display_title() | truncate(24) }}</a>
+    {% endif %}
+    <div class="last-msg muted" style="margin-top:3px; font-size:12.5px;">{% if v.last_message %}💬 {{ v.last_message.text | truncate(60) }}{% endif %}</div>
+    <form class="msg-add" method="post" action="/items/{{ v.item.id }}/messages"
+          style="display:flex; gap:4px; margin-top:4px; max-width:280px;">
+      <input type="text" name="text" placeholder="+ повідомлення…" required
+             style="flex:1; padding:4px 8px; font-size:12.5px;">
+      <button type="submit" style="padding:4px 10px;">→</button>
+    </form>
+    {% if v.item.specification %}
+    <details><summary>специфікація</summary><div class="spec">{{ v.item.specification }}</div></details>
+    {% endif %}
+    <details>
+      <summary>редагувати</summary>
+      <form method="post" action="/items/{{ v.item.id }}/update" style="margin-top:8px;">
+        <label>Найменування</label>
+        <input type="text" name="name" value="{{ v.item.name }}" required>
+        <label>Модуль</label>
+        <input type="text" name="module" value="{{ v.item.module or '' }}"
+               placeholder="напр. Модуль виносу (порожньо — без модуля)">
+        <label>Специфікація</label>
+        <textarea name="specification">{{ v.item.specification }}</textarea>
+        <div class="grid c2">
+          <div><label>Потреба</label><input type="text" name="qty_required" value="{{ v.item.qty_required | qty }}"></div>
+          <div><label>Замовлено</label><input type="text" name="qty_ordered" value="{{ v.item.qty_ordered | qty }}"></div>
+          <div><label>В роботі</label><input type="text" name="qty_in_progress" value="{{ v.item.qty_in_progress | qty }}"></div>
+          <div><label>Ціна, грн</label><input type="text" name="unit_price" value="{{ v.item.unit_price if v.item.unit_price is not none }}"></div>
+        </div>
+        <div style="margin-top:8px; display:flex; gap:8px;">
+          <button type="submit">Зберегти</button>
+        </div>
+      </form>
+      <form class="inline js-del" data-remove="tr" method="post" action="/items/{{ v.item.id }}/delete"
+            onsubmit="return confirm('Видалити позицію «{{ v.item.name }}»?');">
+        <button class="danger" type="submit">Видалити позицію</button>
+      </form>
+    </details>
+  </td>
+  <td>
+    <form method="post" action="/items/{{ v.item.id }}/stage">
+      <select name="stage" class="stage stage-{{ v.item.stage.value }}">
+        {% for st in stages %}
+        <option value="{{ st.value }}" {{ 'selected' if st == v.item.stage }}>{{ st.label_uk }}</option>
+        {% endfor %}
+      </select>
+    </form>
+    {% if v.stage_since %}
+    <div class="muted" style="font-size:12px; margin-top:4px; white-space:nowrap;"
+         title="Дата переходу в цю стадію">з {{ v.stage_since | date_uk }}</div>
+    {% endif %}
+  </td>
+  <td>{{ v.item.qty_required | qty }}</td>
+  <td>{{ '✅' if v.item.is_complete else '' }} {{ v.item.qty_ordered | qty }}</td>
+  <td>{{ v.item.qty_in_progress | qty }}</td>
+  <td class="right">{{ v.item.unit_price | money }}</td>
+  <td class="right">{{ v.item.total_price | money }}</td>
+  <td>
+    {% for offer, supplier in v.offers %}
+    <div style="margin-bottom:4px;">
+      {% if offer.url %}<a href="{{ offer.url }}" target="_blank" rel="noopener">{{ supplier.name }}</a>
+      {% else %}<a href="/suppliers/{{ supplier.id }}">{{ supplier.name }}</a>{% endif %}
+      — {{ offer.price | money }} грн
+      <form class="inline js-del" data-remove="div" method="post" action="/offers/{{ offer.id }}/delete">
+        <button class="danger" title="Видалити пропозицію">×</button>
+      </form>
+    </div>
+    {% endfor %}
+    <details>
+      <summary>+ пропозиція</summary>
+      <form method="post" action="/items/{{ v.item.id }}/offers" style="margin-top:6px;">
+        <select name="supplier_id">
+          <option value="" selected>Постачальник зі списку…</option>
+          {% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+        </select>
+        <label>…або новий постачальник</label>
+        <div style="display:flex; gap:6px;">
+          <input type="text" name="new_supplier_name" placeholder="Назва (напр. bnbfly.com.ua)">
+          <select name="new_supplier_source" style="width:auto;">
+            {% for src in sources %}
+            <option value="{{ src.value }}" {{ 'selected' if src.value == 'distributor' }}>{{ src.label_uk }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <label>Посилання</label>
+        <input type="text" name="url" placeholder="https://…">
+        <label>Ціна, грн</label>
+        <input type="text" name="price">
+        <div style="margin-top:6px;"><button type="submit">Додати</button></div>
+      </form>
+    </details>
+  </td>
+  <td>
+    {#- у режимі замовлень спільний рахунок показуємо в шапці групи, а не в кожному рядку -#}
+    {% for view in d.documents if v.item.id in view.document.line_item_ids
+       and not (group_mode == 'order' and view.document.order_id and view.document.order_id == v.item.order_id) %}
+    <div>
+      <a href="/documents/{{ view.document.id }}/file" target="_blank" rel="noopener" title="{{ view.document.kind.label_uk }}">📄 {{ view.document.title }}</a>
+      {% if view.supplier_name %}<span class="muted">({{ view.supplier_name }})</span>{% endif %}
+      <form class="inline js-del" data-remove="div" method="post" action="/documents/{{ view.document.id }}/delete"
+            onsubmit="return confirm('Видалити документ «{{ view.document.title }}»?');">
+        <button class="danger" title="Видалити документ">×</button>
+      </form>
+    </div>
+    {% endfor %}
+    <details>
+      <summary>+ документ</summary>
+      <form method="post" action="/items/{{ v.item.id }}/documents" enctype="multipart/form-data" style="margin-top:6px; min-width:220px;">
+        <input type="file" name="file" required>
+        <label>Назва</label>
+        <input type="text" name="title" placeholder="Рахунок №…">
+        <div class="title-presets"></div>
+        <label>Тип</label>
+        <select name="kind">
+          {% for k in kinds %}<option value="{{ k.value }}">{{ k.label_uk }}</option>{% endfor %}
+        </select>
+        <label>Постачальник</label>
+        <select name="supplier_id">
+          <option value="">—</option>
+          {% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+        </select>
+        <label>Платник</label>
+        <select name="payer_id">
+          <option value="">—</option>
+          {% for p in payers %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+        </select>
+        <div class="grid c2">
+          <div><label>Сума, грн</label><input type="text" name="amount"></div>
+          <div><label>Дата</label><input type="date" name="doc_date"></div>
+        </div>
+        <div style="margin-top:6px;"><button type="submit">Завантажити</button></div>
+      </form>
+    </details>
+  </td>
+</tr>
+{% endmacro %}
+
+{#- Шапка групи: модуль або замовлення. -#}
+{% macro group_header(g, group_id) %}
+<tr class="group-row {{ 'open' if not collapsed_default }}" data-grp-toggle="{{ group_id }}"
+    data-grp-key="{{ g.key }}" style="cursor:pointer; user-select:none;">
+  <td class="pick-cell" style="background:#eef2f7;">
+    <input type="checkbox" class="pick-group" data-grp="{{ group_id }}" title="Вибрати всю групу">
+  </td>
+  <td colspan="9" style="background:#eef2f7; font-weight:700; padding:8px 10px; font-size:14px;">
+    <span class="caret" style="display:inline-block; width:14px; color:var(--muted);">{{ '▾' if not collapsed_default else '▸' }}</span>
+    {{ g.icon }}
+    {% if g.order %}
+    <a href="{{ order_links[g.order.order.id] }}" title="Показати лише це замовлення">{{ g.label }}</a>
+    {% if g.order.supplier %}
+    <a class="muted" style="font-weight:500;" href="/suppliers/{{ g.order.supplier.id }}">· {{ g.order.supplier.name }}</a>
+    {% endif %}
+    {% else %}
+    {{ g.label }}
+    {% endif %}
+    <span class="muted" style="font-weight:500;">
+      · {{ g.items | length }} поз.
+      · {{ g.cost_total | money }} грн
+      {% if g.order and g.order.invoiced_total is not none %}
+      · за рахунками {{ g.order.invoiced_total | money }} грн
+      {% endif %}
+    </span>
+    {% if g.order %}
+    <form method="post" action="/orders/{{ g.order.order.id }}/stage" class="inline" style="margin-left:8px;">
+      <select name="stage" class="stage {{ 'stage-' + g.order.stage.value if g.order.stage else 'stage-mixed' }}">
+        {% if not g.order.stage %}<option value="" disabled selected>Змішана стадія</option>{% endif %}
+        {% for st in stages %}
+        <option value="{{ st.value }}" {{ 'selected' if g.order.stage and st == g.order.stage }}>{{ st.label_uk }}</option>
+        {% endfor %}
+      </select>
+    </form>
+    {% for view in g.order.documents %}
+    <span style="margin-left:8px; font-weight:500;">
+      <a href="/documents/{{ view.document.id }}/file" target="_blank" rel="noopener">📄 {{ view.document.title | truncate(34) }}</a>
+      {% if view.document.amount is not none %}<span class="muted">{{ view.document.amount | money }} грн</span>{% endif %}
+      <form class="inline js-del" data-remove="span" method="post" action="/documents/{{ view.document.id }}/delete"
+            onsubmit="return confirm('Видалити документ «{{ view.document.title }}»?');">
+        <button class="danger" title="Видалити документ">×</button>
+      </form>
+    </span>
+    {% endfor %}
+    <details style="display:inline-block; margin-left:10px; font-weight:500;">
+      <summary>📎 + рахунок на замовлення</summary>
+      <form method="post" action="/orders/{{ g.order.order.id }}/documents" enctype="multipart/form-data"
+            style="margin-top:8px; max-width:380px; white-space:normal;">
+        <div class="muted">один файл привʼяжеться до всіх {{ g.items | length }} позицій замовлення</div>
+        <input type="file" name="file" required style="margin-top:6px;">
+        <label>Назва</label>
+        <input type="text" name="title" placeholder="Рахунок №…">
+        <div class="title-presets"></div>
+        <label>Тип</label>
+        <select name="kind">
+          {% for k in kinds %}<option value="{{ k.value }}">{{ k.label_uk }}</option>{% endfor %}
+        </select>
+        <div class="grid c2">
+          <div><label>Сума, грн</label><input type="text" name="amount"></div>
+          <div><label>Дата</label><input type="date" name="doc_date"></div>
+        </div>
+        <div style="margin-top:8px;"><button type="submit">Завантажити</button></div>
+      </form>
+    </details>
+    <details style="display:inline-block; margin-left:8px; font-weight:500;">
+      <summary>⋯ правки</summary>
+      <div style="margin-top:8px; max-width:380px; white-space:normal;">
+        <form method="post" action="/orders/{{ g.order.order.id }}/update">
+          <b style="font-size:13px;">Замовлення</b>
+          <label>Назва</label>
+          <input type="text" name="title" value="{{ g.order.order.title }}" placeholder="напр. Рахунок 14802">
+          <label>Продавець</label>
+          <select name="supplier_id">
+            <option value="">—</option>
+            {% for s in suppliers %}
+            <option value="{{ s.id }}" {{ 'selected' if s.id == g.order.order.supplier_id }}>{{ s.name }}</option>
+            {% endfor %}
+          </select>
+          <label>…або новий продавець</label>
+          <input type="text" name="new_supplier_name" placeholder="Назва (напр. relcoma.com.ua)">
+          <label>Нотатка</label>
+          <input type="text" name="note" value="{{ g.order.order.note }}">
+          <div style="margin-top:8px; display:flex; gap:8px;">
+            <button type="submit">Зберегти</button>
+          </div>
+        </form>
+      </div>
+      <form class="inline" method="post" action="/orders/{{ g.order.order.id }}/delete"
+            onsubmit="return confirm('Розібрати замовлення «{{ g.order.order.display_title() }}»? Позиції та документи лишаються.');">
+        <button class="danger" type="submit">Розібрати замовлення</button>
+      </form>
+    </details>
+    {% endif %}
+  </td>
+</tr>
+{% endmacro %}
+
 {% block content %}
 <h1>{{ d.procurement.name }}
   <span class="badge {{ d.procurement.status.value }}">{{ d.procurement.status.label_uk }}</span>
@@ -31,13 +276,14 @@
   <div class="muted" style="margin-top:10px;">
     Кошторис: <b>{{ d.cost_total | money }} грн</b> ·
     Позицій: {{ d.items | length }} ·
+    Замовлень: {{ d.orders | length }} ·
     Документів: {{ d.documents | length }}
   </div>
 </div>
 
 <h2>Позиції</h2>
 <div class="chips">
-  <a class="chip {{ 'on' if not selected_stages }}" href="/procurements/{{ d.procurement.id }}">Всі ({{ d.items | length }})</a>
+  <a class="chip {{ 'on' if not selected_stages }}" href="{{ all_link }}">Всі ({{ d.items | length }})</a>
   {% for st in stages %}
   {% if stage_counts[st] %}
   <a class="chip stage-{{ st.value }} {{ 'on' if st in selected_stages }}"
@@ -45,249 +291,240 @@
   {% endif %}
   {% endfor %}
 </div>
+<div class="chips" style="margin-top:-4px;">
+  <span class="muted" style="align-self:center;">Групувати:</span>
+  <a class="chip {{ 'on' if group_mode == 'module' }}" href="{{ group_links['module'] }}">🧩 Модулі</a>
+  <a class="chip {{ 'on' if group_mode == 'order' }}" href="{{ group_links['order'] }}">📦 Замовлення</a>
+  <a class="chip {{ 'on' if group_mode == 'flat' }}" href="{{ group_links['flat'] }}">Плоско</a>
+  {% if order_filter %}
+  <a class="chip on" href="{{ clear_order_link }}" title="Прибрати фільтр">
+    фільтр: замовлення #{{ order_filter }} ✕
+  </a>
+  {% endif %}
+  <form method="get" action="/procurements/{{ d.procurement.id }}/documents.zip"
+        style="margin-left:auto; display:flex; gap:6px; align-items:center;"
+        title="ZIP з документами того, що зараз показано">
+    {% for st in stages if st in selected_stages %}
+    <input type="hidden" name="stage" value="{{ st.value }}">
+    {% endfor %}
+    {% if order_filter %}<input type="hidden" name="order" value="{{ order_filter }}">{% endif %}
+    <input type="hidden" name="group" value="{{ group_mode }}">
+    <select name="kind" id="export-kind" style="width:auto; padding:3px 8px; font-size:12.5px;">
+      {% for k in kinds %}
+      <option value="{{ k.value }}" {{ 'selected' if k.value == 'invoice' }}>{{ k.label_uk }}</option>
+      {% endfor %}
+      <option value="">Усі документи</option>
+    </select>
+    <button type="submit" style="padding:4px 11px; font-size:12.5px;">⬇️ Експорт</button>
+  </form>
+</div>
 <style>
-  tr.mod-item.is-collapsed { display: none; }
-  tr.module-row:hover td { background: #e4eaf3; }
-  tr.module-row .caret { transition: transform .12s; }
+  tr.grp-item.is-collapsed { display: none; }
+  tr.group-row:hover td { background: #e4eaf3; }
+  tr.group-row .caret { transition: transform .12s; }
 </style>
-{% set has_modules = visible_items | map(attribute='item.module') | select | list | length > 0 %}
-{% if has_modules %}
+{% if groups %}
 <div style="margin:2px 0 8px;">
-  <button type="button" class="ghost" id="toggle-all-modules"
-          data-expanded="{{ '1' if selected_stages else '0' }}">
-    {{ 'Згорнути всі модулі' if selected_stages else 'Розгорнути всі модулі' }}
+  <button type="button" class="ghost" id="toggle-all-groups" data-expanded="{{ '0' if collapsed_default else '1' }}">
+    {{ 'Розгорнути всі' if collapsed_default else 'Згорнути всі' }}
   </button>
 </div>
 {% endif %}
 <div class="table-wrap">
 <table>
   <tr>
+    <th class="pick-cell"><input type="checkbox" id="pick-all" title="Вибрати всі видимі"></th>
     <th style="min-width:240px;">Найменування</th><th>Стадія</th><th>Потреба</th><th>Замовлено</th><th>В роботі</th>
     <th class="right">Ціна</th><th class="right">Вартість</th><th>Пропозиції</th><th>Документи</th>
   </tr>
-  {% set ns = namespace(module=false, gid=0) %}
-  {% for v in visible_items %}
-  {% if has_modules and v.item.module != ns.module %}
-  {% set ns.gid = ns.gid + 1 %}
-  {% set group_items = visible_items | selectattr('item.module', 'equalto', v.item.module) | list %}
-  <tr class="module-row {{ 'open' if selected_stages }}" data-mod-toggle="{{ ns.gid }}"
-      data-mod-name="{{ v.item.module or '' }}"
-      style="cursor:pointer; user-select:none;">
-    <td colspan="9" style="background:#eef2f7; font-weight:700; padding:8px 10px; font-size:14px;">
-      <span class="caret" style="display:inline-block; width:14px; color:var(--muted);">{{ '▾' if selected_stages else '▸' }}</span>
-      🧩 {{ v.item.module or 'Без модуля' }}
-      <span class="muted" style="font-weight:500;">
-        · {{ group_items | length }} поз.
-        · {{ group_items | map(attribute='item.total_price') | sum | money }} грн
-      </span>
-    </td>
-  </tr>
-  {% set ns.module = v.item.module %}
+  {% if groups %}
+    {% for g in groups %}
+    {% set gid = loop.index %}
+    {{ group_header(g, gid) }}
+    {% for v in g.items %}{{ item_row(v, gid) }}{% endfor %}
+    {% endfor %}
+  {% else %}
+    {% for v in visible_items %}{{ item_row(v, none) }}{% endfor %}
   {% endif %}
-  <tr class="{{ 'mod-item' if has_modules }} {{ 'is-collapsed' if has_modules and not selected_stages }}"
-      {% if has_modules %}data-mod="{{ ns.gid }}"{% endif %}>
-    <td>
-      <a href="/items/{{ v.item.id }}" style="font-weight:700; text-decoration:none;">{{ v.item.name }}</a>
-      <div class="last-msg muted" style="margin-top:3px; font-size:12.5px;">{% if v.last_message %}💬 {{ v.last_message.text | truncate(60) }}{% endif %}</div>
-      <form class="msg-add" method="post" action="/items/{{ v.item.id }}/messages"
-            style="display:flex; gap:4px; margin-top:4px; max-width:280px;">
-        <input type="text" name="text" placeholder="+ повідомлення…" required
-               style="flex:1; padding:4px 8px; font-size:12.5px;">
-        <button type="submit" style="padding:4px 10px;">→</button>
-      </form>
-      {% if v.item.specification %}
-      <details><summary>специфікація</summary><div class="spec">{{ v.item.specification }}</div></details>
-      {% endif %}
-      <details>
-        <summary>редагувати</summary>
-        <form method="post" action="/items/{{ v.item.id }}/update" style="margin-top:8px;">
-          <label>Найменування</label>
-          <input type="text" name="name" value="{{ v.item.name }}" required>
-          <label>Модуль</label>
-          <input type="text" name="module" value="{{ v.item.module or '' }}"
-                 placeholder="напр. Модуль виносу (порожньо — без модуля)">
-          <label>Специфікація</label>
-          <textarea name="specification">{{ v.item.specification }}</textarea>
-          <div class="grid c2">
-            <div><label>Потреба</label><input type="text" name="qty_required" value="{{ v.item.qty_required | qty }}"></div>
-            <div><label>Замовлено</label><input type="text" name="qty_ordered" value="{{ v.item.qty_ordered | qty }}"></div>
-            <div><label>В роботі</label><input type="text" name="qty_in_progress" value="{{ v.item.qty_in_progress | qty }}"></div>
-            <div><label>Ціна, грн</label><input type="text" name="unit_price" value="{{ v.item.unit_price if v.item.unit_price is not none }}"></div>
-          </div>
-          <div style="margin-top:8px; display:flex; gap:8px;">
-            <button type="submit">Зберегти</button>
-          </div>
-        </form>
-        <form class="inline js-del" data-remove="tr" method="post" action="/items/{{ v.item.id }}/delete"
-              onsubmit="return confirm('Видалити позицію «{{ v.item.name }}»?');">
-          <button class="danger" type="submit">Видалити позицію</button>
-        </form>
-      </details>
-    </td>
-    <td>
-      <form method="post" action="/items/{{ v.item.id }}/stage">
-        <select name="stage" class="stage stage-{{ v.item.stage.value }}">
-          {% for st in stages %}
-          <option value="{{ st.value }}" {{ 'selected' if st == v.item.stage }}>{{ st.label_uk }}</option>
-          {% endfor %}
-        </select>
-      </form>
-    </td>
-    <td>{{ v.item.qty_required | qty }}</td>
-    <td>{{ '✅' if v.item.is_complete else '' }} {{ v.item.qty_ordered | qty }}</td>
-    <td>{{ v.item.qty_in_progress | qty }}</td>
-    <td class="right">{{ v.item.unit_price | money }}</td>
-    <td class="right">{{ v.item.total_price | money }}</td>
-    <td>
-      {% for offer, supplier in v.offers %}
-      <div style="margin-bottom:4px;">
-        {% if offer.url %}<a href="{{ offer.url }}" target="_blank" rel="noopener">{{ supplier.name }}</a>
-        {% else %}<a href="/suppliers/{{ supplier.id }}">{{ supplier.name }}</a>{% endif %}
-        — {{ offer.price | money }} грн
-        <form class="inline js-del" data-remove="div" method="post" action="/offers/{{ offer.id }}/delete">
-          <button class="danger" title="Видалити пропозицію">×</button>
-        </form>
-      </div>
-      {% endfor %}
-      <details>
-        <summary>+ пропозиція</summary>
-        <form method="post" action="/items/{{ v.item.id }}/offers" style="margin-top:6px;">
-          <select name="supplier_id">
-            <option value="" selected>Постачальник зі списку…</option>
-            {% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
-          </select>
-          <label>…або новий постачальник</label>
-          <div style="display:flex; gap:6px;">
-            <input type="text" name="new_supplier_name" placeholder="Назва (напр. bnbfly.com.ua)">
-            <select name="new_supplier_source" style="width:auto;">
-              {% for src in sources %}
-              <option value="{{ src.value }}" {{ 'selected' if src.value == 'distributor' }}>{{ src.label_uk }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <label>Посилання</label>
-          <input type="text" name="url" placeholder="https://…">
-          <label>Ціна, грн</label>
-          <input type="text" name="price">
-          <div style="margin-top:6px;"><button type="submit">Додати</button></div>
-        </form>
-      </details>
-    </td>
-    <td>
-      {% for view in d.documents if v.item.id in view.document.line_item_ids %}
-      <div>
-        <a href="/documents/{{ view.document.id }}/file" target="_blank" rel="noopener" title="{{ view.document.kind.label_uk }}">📄 {{ view.document.title }}</a>
-        {% if view.supplier_name %}<span class="muted">({{ view.supplier_name }})</span>{% endif %}
-        <form class="inline js-del" data-remove="div" method="post" action="/documents/{{ view.document.id }}/delete"
-              onsubmit="return confirm('Видалити документ «{{ view.document.title }}»?');">
-          <button class="danger" title="Видалити документ">×</button>
-        </form>
-      </div>
-      {% endfor %}
-      <details>
-        <summary>+ документ</summary>
-        <form method="post" action="/items/{{ v.item.id }}/documents" enctype="multipart/form-data" style="margin-top:6px; min-width:220px;">
-          <input type="file" name="file" required>
-          <label>Назва</label>
-          <input type="text" name="title" placeholder="Рахунок №…">
-          <div class="title-presets"></div>
-          <label>Тип</label>
-          <select name="kind">
-            {% for k in kinds %}<option value="{{ k.value }}">{{ k.label_uk }}</option>{% endfor %}
-          </select>
-          <label>Постачальник</label>
-          <select name="supplier_id">
-            <option value="">—</option>
-            {% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
-          </select>
-          <label>Платник</label>
-          <select name="payer_id">
-            <option value="">—</option>
-            {% for p in payers %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
-          </select>
-          <div class="grid c2">
-            <div><label>Сума, грн</label><input type="text" name="amount"></div>
-            <div><label>Дата</label><input type="date" name="doc_date"></div>
-          </div>
-          <div style="margin-top:6px;"><button type="submit">Завантажити</button></div>
-        </form>
-      </details>
-    </td>
-  </tr>
-  {% endfor %}
 </table>
 </div>
 
+{#- Панель масових дій: зʼявляється, коли вибрано хоч одну позицію -#}
+<div class="bulk" id="bulk-bar">
+  <b><span id="bulk-count">0</span> поз.</b>
+  <form method="post" id="bulk-form" action="/items/bulk-stage"
+        style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+    <span id="bulk-items"></span>
+    <select name="stage">
+      {% for st in stages %}<option value="{{ st.value }}">{{ st.label_uk }}</option>{% endfor %}
+    </select>
+    <button type="submit" formaction="/items/bulk-stage">Стадія</button>
+    <span class="sep">|</span>
+    <select name="order_id">
+      <option value="">замовлення…</option>
+      {% for ov in d.orders %}
+      <option value="{{ ov.order.id }}">{{ ov.order.display_title() }}{% if ov.supplier %} · {{ ov.supplier.name }}{% endif %}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" formaction="/orders/assign">📦 Додати</button>
+    <button type="submit" class="ghost" formaction="/orders/detach">Вийняти</button>
+    <button type="button" class="ghost" id="bulk-export" title="ZIP з документами вибраних позицій">⬇️ Документи</button>
+    <span class="sep">|</span>
+    <details>
+      <summary>＋ нове замовлення</summary>
+      <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; align-items:center;">
+        <input type="text" name="title" placeholder="Назва (напр. Рахунок 14802)">
+        <select name="supplier_id">
+          <option value="">продавець зі списку…</option>
+          {% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+        </select>
+        <input type="text" name="new_supplier_name" placeholder="або новий продавець">
+        <button type="submit" formaction="/procurements/{{ d.procurement.id }}/orders">Створити</button>
+      </div>
+    </details>
+  </form>
+  <button type="button" class="ghost" id="bulk-clear" title="Зняти вибір">✕</button>
+</div>
+
 <script>
-  // Згортання/розгортання модулів у таблиці позицій.
-  // Стан кожної групи запам'ятовується в sessionStorage, тож переживає і збереження
-  // форми (сторінка оновлюється через fetch), і перехід за фільтром стадій.
-  const MODULES_KEY = 'zk_modules_{{ d.procurement.id }}';
+  // ── Групи в таблиці позицій (модулі або замовлення) ─────────────────────────
+  // Стан згорнутості живе в sessionStorage окремо для кожного режиму групування,
+  // тож перемикання «Модулі ↔ Замовлення» не плутає збережений стан.
+  const GROUPS_KEY = 'zk_groups_{{ d.procurement.id }}_{{ group_mode }}';
 
-  function moduleHeaders() {
-    return [...document.querySelectorAll('tr.module-row[data-mod-toggle]')];
+  function groupHeaders() {
+    return [...document.querySelectorAll('tr.group-row[data-grp-toggle]')];
   }
-
-  function readModuleState() {
-    try { return JSON.parse(sessionStorage.getItem(MODULES_KEY) || '{}'); } catch { return {}; }
+  function groupRows(id) {
+    return [...document.querySelectorAll('tr.grp-item[data-grp="' + id + '"]')];
   }
-
-  function saveModuleState() {
-    const state = readModuleState();
-    moduleHeaders().forEach((h) => { state[h.dataset.modName] = h.classList.contains('open'); });
-    try { sessionStorage.setItem(MODULES_KEY, JSON.stringify(state)); } catch {}
+  function readGroupState() {
+    try { return JSON.parse(sessionStorage.getItem(GROUPS_KEY) || '{}'); } catch { return {}; }
   }
-
-  function setModuleGroup(header, expanded) {
+  function saveGroupState() {
+    const state = readGroupState();
+    groupHeaders().forEach((h) => { state[h.dataset.grpKey] = h.classList.contains('open'); });
+    try { sessionStorage.setItem(GROUPS_KEY, JSON.stringify(state)); } catch {}
+  }
+  function setGroup(header, expanded) {
     header.classList.toggle('open', expanded);
-    const gid = header.dataset.modToggle;
-    document.querySelectorAll('tr.mod-item[data-mod="' + gid + '"]').forEach((row) => {
+    groupRows(header.dataset.grpToggle).forEach((row) => {
       row.classList.toggle('is-collapsed', !expanded);
     });
     const caret = header.querySelector('.caret');
     if (caret) caret.textContent = expanded ? '▾' : '▸';
   }
-
   function syncToggleAll() {
-    const btn = document.getElementById('toggle-all-modules');
+    const btn = document.getElementById('toggle-all-groups');
     if (!btn) return;
-    const collapsed = moduleHeaders().some((h) => !h.classList.contains('open'));
+    const collapsed = groupHeaders().some((h) => !h.classList.contains('open'));
     btn.dataset.expanded = collapsed ? '0' : '1';
-    btn.textContent = collapsed ? 'Розгорнути всі модулі' : 'Згорнути всі модулі';
+    btn.textContent = collapsed ? 'Розгорнути всі' : 'Згорнути всі';
   }
-
-  function applyModuleState() {
-    const state = readModuleState();
-    // модуль, якого ще немає в пам'яті, лишається таким, як віддав сервер
-    moduleHeaders().forEach((h) => {
-      const saved = state[h.dataset.modName];
-      if (typeof saved === 'boolean') setModuleGroup(h, saved);
+  function applyGroupState() {
+    const state = readGroupState();
+    // група, якої ще немає в памʼяті, лишається такою, як віддав сервер
+    groupHeaders().forEach((h) => {
+      const saved = state[h.dataset.grpKey];
+      if (typeof saved === 'boolean') setGroup(h, saved);
     });
     syncToggleAll();
   }
 
+  // ── Вибір позицій і панель масових дій ─────────────────────────────────────
+  function picks() { return [...document.querySelectorAll('input.pick')]; }
+  function checkedPicks() { return picks().filter((c) => c.checked); }
+
+  function refreshBulk() {
+    const chosen = checkedPicks();
+    const bar = document.getElementById('bulk-bar');
+    if (!bar) return;
+    document.getElementById('bulk-count').textContent = chosen.length;
+    bar.classList.toggle('show', chosen.length > 0);
+    // id-и вибраних позицій їдуть у формі як item_ids
+    const box = document.getElementById('bulk-items');
+    box.innerHTML = '';
+    chosen.forEach((c) => {
+      const input = document.createElement('input');
+      input.type = 'hidden'; input.name = 'item_ids'; input.value = c.value;
+      box.appendChild(input);
+    });
+    const all = document.getElementById('pick-all');
+    if (all) all.checked = chosen.length > 0 && chosen.length === picks().length;
+    groupHeaders().forEach((h) => {
+      const group = groupRows(h.dataset.grpToggle).map((r) => r.querySelector('input.pick'));
+      const groupBox = h.querySelector('input.pick-group');
+      if (groupBox) groupBox.checked = group.length > 0 && group.every((c) => c && c.checked);
+    });
+  }
+
+  let lastPicked = null;
   document.addEventListener('click', (e) => {
-    const header = e.target.closest('tr.module-row[data-mod-toggle]');
-    if (header) {
-      // клік по інтерактивному елементу всередині заголовка не згортає групу
-      if (e.target.closest('a, button, form, input, select')) return;
-      setModuleGroup(header, !header.classList.contains('open'));
-      syncToggleAll();
-      saveModuleState();
+    const box = e.target.closest('input.pick');
+    if (box) {
+      // Shift+клік вибирає діапазон — 77 позицій інакше не наклацаєш
+      if (e.shiftKey && lastPicked) {
+        const list = picks();
+        const from = list.indexOf(lastPicked), to = list.indexOf(box);
+        if (from > -1 && to > -1) {
+          list.slice(Math.min(from, to), Math.max(from, to) + 1)
+            .forEach((c) => { c.checked = box.checked; });
+        }
+      }
+      lastPicked = box;
+      refreshBulk();
       return;
     }
-    if (e.target.closest('#toggle-all-modules')) {
-      const btn = document.getElementById('toggle-all-modules');
-      const expand = btn.dataset.expanded !== '1';
-      moduleHeaders().forEach((h) => setModuleGroup(h, expand));
+    const groupBox = e.target.closest('input.pick-group');
+    if (groupBox) {
+      groupRows(groupBox.dataset.grp).forEach((row) => {
+        const c = row.querySelector('input.pick');
+        if (c) c.checked = groupBox.checked;
+      });
+      refreshBulk();
+      return;
+    }
+    if (e.target.closest('#pick-all')) {
+      const on = document.getElementById('pick-all').checked;
+      picks().forEach((c) => { c.checked = on; });
+      refreshBulk();
+      return;
+    }
+    if (e.target.closest('#bulk-export')) {
+      const parts = checkedPicks().map((c) => 'item=' + c.value);
+      const kind = document.getElementById('export-kind');
+      if (kind && kind.value) parts.push('kind=' + kind.value);
+      const base = '{{ export_link }}';
+      location.href = base + (base.includes('?') ? '&' : '?') + parts.join('&');
+      return;
+    }
+    if (e.target.closest('#bulk-clear')) {
+      picks().forEach((c) => { c.checked = false; });
+      refreshBulk();
+      return;
+    }
+    const header = e.target.closest('tr.group-row[data-grp-toggle]');
+    if (header) {
+      // клік по інтерактивному елементу всередині шапки не згортає групу
+      if (e.target.closest('a, button, form, input, select, details, summary')) return;
+      setGroup(header, !header.classList.contains('open'));
       syncToggleAll();
-      saveModuleState();
+      saveGroupState();
+      return;
+    }
+    if (e.target.closest('#toggle-all-groups')) {
+      const btn = document.getElementById('toggle-all-groups');
+      const expand = btn.dataset.expanded !== '1';
+      groupHeaders().forEach((h) => setGroup(h, expand));
+      syncToggleAll();
+      saveGroupState();
     }
   });
 
-  // після збереження форми <main> перемальовується — повертаємо групи на місце
-  document.addEventListener('page:refreshed', applyModuleState);
-  applyModuleState();
+  function refreshPage() { applyGroupState(); refreshBulk(); }
+  // після збереження форми <main> перемальовується — повертаємо стан на місце
+  document.addEventListener('page:refreshed', refreshPage);
+  refreshPage();
 </script>
 
 {% if visible_items %}
@@ -297,11 +534,23 @@
     <button type="button" id="copy-spec">Копіювати специфікацію</button>
   </div>
   <div id="spec-lines" style="margin-top:8px;">
-    {% for v in visible_items %}
-    <div class="spec-line">
-      <a href="/items/{{ v.item.id }}">{{ v.item.name }}</a><span class="spec-tail"> — {{ v.item.qty_required | qty }} шт, ціна {{ v.item.unit_price | money }}, сума {{ v.item.total_price | money }} грн</span>
-    </div>
-    {% endfor %}
+    {% if groups %}
+      {% for g in groups %}
+      <div class="spec-head">{{ g.icon }} {{ g.label }}{% if g.order and g.order.supplier %} — {{ g.order.supplier.name }}{% endif %}</div>
+      {% for v in g.items %}
+      <div class="spec-line">
+        <a href="/items/{{ v.item.id }}">{{ v.item.name }}</a><span class="spec-tail"> — {{ v.item.qty_required | qty }} шт, ціна {{ v.item.unit_price | money }}, сума {{ v.item.total_price | money }} грн</span>
+      </div>
+      {% endfor %}
+      <div class="spec-sub">Підсумок «{{ g.label }}»: {{ g.cost_total | money }} грн ({{ g.items | length }} поз.)</div>
+      {% endfor %}
+    {% else %}
+      {% for v in visible_items %}
+      <div class="spec-line">
+        <a href="/items/{{ v.item.id }}">{{ v.item.name }}</a><span class="spec-tail"> — {{ v.item.qty_required | qty }} шт, ціна {{ v.item.unit_price | money }}, сума {{ v.item.total_price | money }} грн</span>
+      </div>
+      {% endfor %}
+    {% endif %}
   </div>
   <div id="spec-total" style="margin-top:8px; font-weight:700;">
     Разом: {{ visible_items | map(attribute='item.total_price') | sum | money }} грн
@@ -311,12 +560,16 @@
 
 <script>
   // Копіює специфікацію простим текстом без посилань (локальні URL одержувачам не працюють).
+  // Заголовки груп і підсумки їдуть у тому ж порядку, що й на сторінці.
   document.addEventListener('click', (e) => {
     if (!e.target.closest('#copy-spec')) return;
-    const lines = [...document.querySelectorAll('#spec-lines .spec-line')]
-      .map((line) => line.textContent.trim().replace(/\s+/g, ' '));
-    lines.push(document.getElementById('spec-total').textContent.trim());
-    navigator.clipboard.writeText(lines.join('\n'))
+    const lines = [...document.querySelectorAll('#spec-lines .spec-head, #spec-lines .spec-line, #spec-lines .spec-sub')]
+      .map((el) => {
+        const text = el.textContent.trim().replace(/\s+/g, ' ');
+        return el.classList.contains('spec-head') ? '\n' + text : text;
+      });
+    lines.push('', document.getElementById('spec-total').textContent.trim());
+    navigator.clipboard.writeText(lines.join('\n').trim())
       .then(() => showFlash('Специфікацію скопійовано'));
   });
 </script>
@@ -342,6 +595,93 @@
   </form>
 </div>
 
+<h2>Замовлення</h2>
+<p class="muted" style="margin-top:-6px;">Позиції, які купуються разом одним рахунком в одного продавця.</p>
+{% if d.orders %}
+<table>
+  <tr><th>Замовлення</th><th>Продавець</th><th>Стадія</th><th class="right">Позицій</th>
+      <th class="right">Кошторис</th><th class="right">За рахунками</th><th>Документи</th><th></th></tr>
+  {% for ov in d.orders %}
+  <tr>
+    <td><a href="{{ order_links[ov.order.id] }}" style="font-weight:600;">{{ ov.order.display_title() }}</a>
+      {% if ov.order.note %}<div class="muted">{{ ov.order.note }}</div>{% endif %}
+    </td>
+    <td>{% if ov.supplier %}<a href="/suppliers/{{ ov.supplier.id }}">{{ ov.supplier.name }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
+    <td>
+      <form method="post" action="/orders/{{ ov.order.id }}/stage">
+        <select name="stage" class="stage {{ 'stage-' + ov.stage.value if ov.stage else 'stage-mixed' }}">
+          {% if not ov.stage %}<option value="" disabled selected>Змішана</option>{% endif %}
+          {% for st in stages %}
+          <option value="{{ st.value }}" {{ 'selected' if ov.stage and st == ov.stage }}>{{ st.label_uk }}</option>
+          {% endfor %}
+        </select>
+      </form>
+    </td>
+    <td class="right">{{ ov.items | length }}</td>
+    <td class="right">{{ ov.cost_total | money }}</td>
+    <td class="right">{{ ov.invoiced_total | money if ov.invoiced_total is not none else '—' }}</td>
+    <td>
+      {% for view in ov.documents %}
+      <div><a href="/documents/{{ view.document.id }}/file" target="_blank" rel="noopener">📄 {{ view.document.title | truncate(30) }}</a></div>
+      {% endfor %}
+      <details>
+        <summary>📎 + рахунок</summary>
+        <form method="post" action="/orders/{{ ov.order.id }}/documents" enctype="multipart/form-data"
+              style="margin-top:6px; min-width:230px;">
+          <div class="muted">привʼяжеться до всіх {{ ov.items | length }} позицій</div>
+          <input type="file" name="file" required style="margin-top:6px;">
+          <label>Назва</label>
+          <input type="text" name="title" placeholder="Рахунок №…">
+          <div class="title-presets"></div>
+          <label>Тип</label>
+          <select name="kind">
+            {% for k in kinds %}<option value="{{ k.value }}">{{ k.label_uk }}</option>{% endfor %}
+          </select>
+          <div class="grid c2">
+            <div><label>Сума, грн</label><input type="text" name="amount"></div>
+            <div><label>Дата</label><input type="date" name="doc_date"></div>
+          </div>
+          <div style="margin-top:6px;"><button type="submit">Завантажити</button></div>
+        </form>
+      </details>
+    </td>
+    <td>
+      <form class="inline" method="post" action="/orders/{{ ov.order.id }}/delete"
+            onsubmit="return confirm('Розібрати замовлення «{{ ov.order.display_title() }}»? Позиції та документи лишаються.');">
+        <button class="danger" title="Розібрати замовлення">×</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="muted">Замовлень поки немає — виберіть позиції галочками і створіть перше в панелі внизу.</p>
+{% endif %}
+<div class="card" style="margin-top:10px;">
+  <b>Порожнє замовлення</b>
+  <span class="muted">— позиції додасте пізніше галочками.</span>
+  <form method="post" action="/procurements/{{ d.procurement.id }}/orders" class="grid c3" style="margin-top:8px; align-items:end;">
+    <div>
+      <label>Назва</label>
+      <input type="text" name="title" placeholder="напр. Рахунок 14802">
+    </div>
+    <div>
+      <label>Продавець</label>
+      <select name="supplier_id">
+        <option value="">—</option>
+        {% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+      </select>
+      <label>…або новий продавець</label>
+      <input type="text" name="new_supplier_name" placeholder="Назва (напр. relcoma.com.ua)">
+    </div>
+    <div>
+      <label>Нотатка</label>
+      <input type="text" name="note">
+      <div style="margin-top:10px;"><button type="submit">Створити замовлення</button></div>
+    </div>
+  </form>
+</div>
+
 <h2 style="display:flex; align-items:center; gap:12px;">Документи
   <form class="inline js-open-folder" method="post" action="/procurements/{{ d.procurement.id }}/open-folder">
     <button class="ghost" type="submit" title="Відкрити папку з файлами цієї закупівлі">📂 Відкрити папку</button>
@@ -351,13 +691,18 @@
 {% for v in d.items %}{% if item_names.update({v.item.id: v.item.name}) %}{% endif %}{% endfor %}
 {% if d.documents %}
 <table>
-  <tr><th>Документ</th><th>Тип</th><th>Позиції</th><th>Постачальник</th><th>Платник</th><th class="right">Сума, грн</th><th>Дата</th><th></th></tr>
+  <tr><th>Документ</th><th>Тип</th><th>Замовлення</th><th>Позиції</th><th>Постачальник</th><th>Платник</th><th class="right">Сума, грн</th><th>Дата</th><th></th></tr>
   {% for view in d.documents %}
   <tr>
     <td><a href="/documents/{{ view.document.id }}/file" target="_blank" rel="noopener">{{ view.document.title }}</a>
       {% if view.document.note %}<div class="muted">{{ view.document.note }}</div>{% endif %}
     </td>
     <td>{{ view.document.kind.label_uk }}</td>
+    <td class="muted">
+      {% if view.document.order_id and view.document.order_id in order_links %}
+      <a href="{{ order_links[view.document.order_id] }}">📦 #{{ view.document.order_id }}</a>
+      {% else %}—{% endif %}
+    </td>
     <td class="muted">
       {% for item_id in view.document.line_item_ids %}{{ item_names.get(item_id, '?') | truncate(40) }}{{ ', ' if not loop.last }}{% else %}—{% endfor %}
     </td>
@@ -380,7 +725,7 @@
 
 <div class="card" style="margin-top:14px;">
   <b>Загальний документ закупівлі</b>
-  <span class="muted">— без прив'язки до конкретної позиції (договір, специфікація…). Рахунки по позиціях зручніше додавати кнопкою «+ документ» у рядку позиції.</span>
+  <span class="muted">— без прив'язки до позицій (договір, специфікація…). Рахунок на кілька позицій зручніше вантажити в шапці замовлення.</span>
   <form method="post" action="/procurements/{{ d.procurement.id }}/documents" enctype="multipart/form-data" class="grid c3" style="margin-top:8px; align-items:end;">
     <div>
       <label>Файл (PDF, фото…)</label>

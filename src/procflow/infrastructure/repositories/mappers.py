@@ -13,7 +13,9 @@ from procflow.domain.entities import (
     Procurement,
     ProcurementStatus,
     Recipient,
+    StageChange,
     Supplier,
+    SupplierOrder,
     SupplierSource,
 )
 from procflow.infrastructure.database import (
@@ -24,6 +26,8 @@ from procflow.infrastructure.database import (
     PayerRow,
     ProcurementRow,
     RecipientRow,
+    StageChangeRow,
+    SupplierOrderRow,
     SupplierRow,
 )
 
@@ -51,6 +55,18 @@ def line_item_from_row(row: LineItemRow) -> LineItem:
         unit_price=row.unit_price,
         stage=ItemStage(row.stage),
         module=row.module,
+        order_id=row.order_id,
+        created_at=row.created_at,
+    )
+
+
+def supplier_order_from_row(row: SupplierOrderRow) -> SupplierOrder:
+    return SupplierOrder(
+        id=row.id,
+        procurement_id=row.procurement_id,
+        title=row.title,
+        supplier_id=row.supplier_id,
+        note=row.note,
         created_at=row.created_at,
     )
 
@@ -61,6 +77,15 @@ def message_from_row(row: MessageRow) -> ItemMessage:
         line_item_id=row.line_item_id,
         text=row.text,
         created_at=row.created_at,
+    )
+
+
+def stage_change_from_row(row: StageChangeRow) -> StageChange:
+    return StageChange(
+        id=row.id,
+        line_item_id=row.line_item_id,
+        stage=ItemStage(row.stage),
+        changed_at=row.changed_at,
     )
 
 
@@ -126,6 +151,7 @@ def document_from_row(row: DocumentRow) -> Document:
         amount=row.amount,
         doc_date=row.doc_date,
         note=row.note,
+        order_id=row.order_id,
         line_item_ids=[link.line_item_id for link in row.item_links],
         created_at=row.created_at,
     )

@@ -9,8 +9,12 @@ from procflow.application.dto import (
     CreateProcurementInput,
     LineItemInput,
     OfferInput,
-    SupplierInput,
     UpdateProcurementInput,
+)
+from procflow.application.interactors.queries.group_items import (
+    GROUP_MODES,
+    build_groups,
+    sort_for_orders,
 )
 from procflow.application.uow import UnitOfWork
 from procflow.domain.entities import (
@@ -56,11 +60,42 @@ def create_procurement(
     return RedirectResponse(f"/procurements/{procurement.id}", status_code=303)
 
 
+def _page_link(
+    procurement_id: int,
+    stages: set[ItemStage],
+    group: str,
+    order_id: int | None,
+) -> str:
+    """Адреса сторінки закупівлі зі збереженням фільтрів і режиму групування."""
+    parts = [f"stage={st.value}" for st in ItemStage if st in stages]
+    if group != "module":
+        parts.append(f"group={group}")
+    if order_id is not None:
+        parts.append(f"order={order_id}")
+    query = "&".join(parts)
+    return f"/procurements/{procurement_id}" + (f"?{query}" if query else "")
+
+
+def _export_link(
+    procurement_id: int, stages: set[ItemStage], order_id: int | None, group: str
+) -> str:
+    """Архів документів рівно по тому, що зараз відфільтровано."""
+    parts = [f"stage={st.value}" for st in ItemStage if st in stages]
+    if order_id is not None:
+        parts.append(f"order={order_id}")
+    if group != "module":
+        parts.append(f"group={group}")
+    query = "&".join(parts)
+    return f"/procurements/{procurement_id}/documents.zip" + (f"?{query}" if query else "")
+
+
 @router.get("/procurements/{procurement_id}", response_class=HTMLResponse)
 def procurement_details(
     request: Request,
     procurement_id: int,
     stage: list[str] = Query([]),
+    group: str = Query("module"),
+    order: int | None = Query(None),
     uow: UnitOfWork = Depends(get_uow),
 ) -> HTMLResponse:
     details = uow.get_procurement_details(procurement_id)
@@ -71,18 +106,49 @@ def procurement_details(
     for view in details.items:
         stage_counts[view.item.stage] += 1
     selected_stages = {ItemStage(s) for s in stage if s}
+    group_mode = group if group in GROUP_MODES else "module"
     visible_items = [
-        v for v in details.items if not selected_stages or v.item.stage in selected_stages
+        v
+        for v in details.items
+        if (not selected_stages or v.item.stage in selected_stages)
+        and (order is None or v.item.order_id == order)
     ]
-    stage_links = {st: _stage_toggle_link(procurement_id, selected_stages, st) for st in ItemStage}
+    if group_mode == "order":
+        visible_items = sort_for_orders(visible_items, details.orders)
+    groups = build_groups(group_mode, visible_items, details.orders)
     return templates.TemplateResponse(
         request,
         "procurement_detail.html",
         {
             "d": details,
             "visible_items": visible_items,
+            "groups": groups,
+            "group_mode": group_mode,
+            "group_links": {
+                mode: _page_link(procurement_id, selected_stages, mode, order)
+                for mode in GROUP_MODES
+            },
+            "order_filter": order,
+            # why: макроси Jinja не бачать {% set %} усередині block, тож ознака
+            # «групи згорнуті за замовчуванням» приходить з контексту.
+            "collapsed_default": not selected_stages,
+            "order_links": {
+                view.order.id: _page_link(procurement_id, selected_stages, "order", view.order.id)
+                for view in details.orders
+            },
+            "clear_order_link": _page_link(procurement_id, selected_stages, group_mode, None),
+            "export_link": _export_link(procurement_id, selected_stages, order, group_mode),
             "selected_stages": selected_stages,
-            "stage_links": stage_links,
+            "stage_links": {
+                st: _page_link(
+                    procurement_id,
+                    {s for s in ItemStage if (s in selected_stages) != (s is st)},
+                    group_mode,
+                    order,
+                )
+                for st in ItemStage
+            },
+            "all_link": _page_link(procurement_id, set(), group_mode, order),
             "stage_counts": stage_counts,
             "stages": list(ItemStage),
             "suppliers": suppliers,
@@ -101,13 +167,6 @@ def open_procurement_folder(procurement_id: int, uow: UnitOfWork = Depends(get_u
     procurement = uow.procurements.get(procurement_id)
     uow.storage.reveal_folder(procurement.name)
     return Response(status_code=204)
-
-
-def _stage_toggle_link(procurement_id: int, selected: set[ItemStage], toggled: ItemStage) -> str:
-    """Chip href: clicking a stage chip adds/removes it from the multi-select filter."""
-    stages = [st for st in ItemStage if (st in selected) != (st is toggled)]
-    query = "&".join(f"stage={st.value}" for st in stages)
-    return f"/procurements/{procurement_id}" + (f"?{query}" if query else "")
 
 
 @router.post("/procurements/{procurement_id}/update")
@@ -247,9 +306,13 @@ def add_offer(
     uow: UnitOfWork = Depends(get_uow),
 ) -> RedirectResponse:
     procurement_id = uow.items.get(item_id).procurement_id
-    resolved_supplier_id = _resolve_supplier(
-        uow, supplier_id, new_supplier_name, new_supplier_source
+    resolved_supplier_id = uow.resolve_supplier(
+        int(supplier_id) if supplier_id.strip() else None,
+        new_supplier_name,
+        SupplierSource(new_supplier_source),
     )
+    if resolved_supplier_id is None:
+        raise InvalidInputError("Оберіть постачальника або введіть назву нового")
     uow.add_offer(
         OfferInput(
             line_item_id=item_id,
@@ -260,25 +323,6 @@ def add_offer(
         )
     )
     return RedirectResponse(f"/procurements/{procurement_id}", status_code=303)
-
-
-def _resolve_supplier(
-    uow: UnitOfWork, supplier_id: str, new_supplier_name: str, new_supplier_source: str
-) -> int:
-    """Use the selected supplier or create a named one on the fly (deduped by name)."""
-    if new_supplier_name.strip():
-        existing = uow.suppliers.get_by_name(new_supplier_name.strip())
-        if existing is not None:
-            assert existing.id is not None
-            return existing.id
-        created = uow.create_supplier(
-            SupplierInput(name=new_supplier_name, source=SupplierSource(new_supplier_source))
-        )
-        assert created.id is not None
-        return created.id
-    if supplier_id.strip():
-        return int(supplier_id)
-    raise InvalidInputError("Оберіть постачальника або введіть назву нового")
 
 
 @router.post("/offers/{offer_id}/delete")

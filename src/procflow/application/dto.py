@@ -3,17 +3,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 
 from procflow.domain.entities import (
     Document,
     DocumentKind,
     ItemMessage,
+    ItemStage,
     LineItem,
     Offer,
     Procurement,
     ProcurementStatus,
     Supplier,
+    SupplierOrder,
     SupplierSource,
 )
 
@@ -45,6 +47,17 @@ class LineItemInput:
     qty_in_progress: float = 0.0
     unit_price: float | None = None
     module: str | None = None
+
+
+@dataclass(slots=True)
+class SupplierOrderInput:
+    """Замовлення: назва + продавець (наявний або новий, створюється на льоту)."""
+
+    title: str = ""
+    supplier_id: int | None = None
+    new_supplier_name: str = ""
+    new_supplier_source: SupplierSource = SupplierSource.DISTRIBUTOR
+    note: str = ""
 
 
 @dataclass(slots=True)
@@ -102,6 +115,7 @@ class AttachDocumentInput:
     amount: float | None = None
     doc_date: date | None = None
     note: str = ""
+    order_id: int | None = None
     line_item_ids: list[int] = field(default_factory=list)
 
 
@@ -126,6 +140,18 @@ class LineItemView:
     item: LineItem
     offers: list[tuple[Offer, Supplier]] = field(default_factory=list)
     last_message: ItemMessage | None = None
+    stage_since: datetime | None = None
+    """Коли позиція перейшла в поточну стадію; None — переходу не зафіксовано."""
+    order: SupplierOrder | None = None
+    """Замовлення, у складі якого купується позиція; None — купується окремо."""
+
+
+@dataclass(slots=True)
+class StageStep:
+    """One step of a line item's stage timeline; ``at`` is None when unknown."""
+
+    stage: ItemStage
+    at: datetime | None
 
 
 @dataclass(slots=True)
@@ -137,6 +163,55 @@ class LineItemDetails:
     offers: list[tuple[Offer, Supplier]]
     documents: list[DocumentView]
     messages: list[ItemMessage]
+    stage_timeline: list[StageStep] = field(default_factory=list)
+    order: SupplierOrder | None = None
+    order_supplier: Supplier | None = None
+
+
+@dataclass(slots=True)
+class OrderView:
+    """Замовлення з його позиціями і документами; агрегати — похідні."""
+
+    order: SupplierOrder
+    supplier: Supplier | None
+    items: list[LineItemView] = field(default_factory=list)
+    documents: list[DocumentView] = field(default_factory=list)
+
+    @property
+    def cost_total(self) -> float:
+        """Кошторис замовлення за цінами позицій."""
+        return sum(v.item.total_price for v in self.items)
+
+    @property
+    def invoiced_total(self) -> float | None:
+        """Сума за документами; None — жодної суми не вказано."""
+        amounts = [v.document.amount for v in self.documents if v.document.amount is not None]
+        return sum(amounts) if amounts else None
+
+    @property
+    def stage(self) -> ItemStage | None:
+        """Спільна стадія всіх позицій; None — стадії різні («змішана»)."""
+        stages = {v.item.stage for v in self.items}
+        return stages.pop() if len(stages) == 1 else None
+
+
+@dataclass(slots=True)
+class ItemGroup:
+    """Блок таблиці позицій: заголовок + свої позиції.
+
+    Одна структура на дві осі групування — модуль і замовлення, тож шаблон,
+    копія специфікації та експорт не знають різниці.
+    """
+
+    key: str
+    label: str
+    icon: str
+    items: list[LineItemView] = field(default_factory=list)
+    order: OrderView | None = None
+
+    @property
+    def cost_total(self) -> float:
+        return sum(v.item.total_price for v in self.items)
 
 
 @dataclass(slots=True)
@@ -145,6 +220,7 @@ class ProcurementDetails:
     items: list[LineItemView]
     documents: list[DocumentView]
     cost_total: float
+    orders: list[OrderView] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -155,6 +231,23 @@ class DocumentView:
     procurement_name: str
     supplier_name: str | None
     payer_name: str | None = None
+
+
+@dataclass(slots=True)
+class ExportEntry:
+    """Один файл в архіві: імʼя всередині і шлях у сховищі."""
+
+    arcname: str
+    file_path: str
+
+
+@dataclass(slots=True)
+class ExportBundle:
+    """Матеріал для архіву документів: файли + текстовий перелік."""
+
+    filename: str
+    entries: list[ExportEntry]
+    listing: str
 
 
 @dataclass(slots=True)
